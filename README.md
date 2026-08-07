@@ -43,11 +43,11 @@ launch needs right-click, Open, confirm.
 - Topics capped at 100k, dropped messages reported
 - Auto-expand stops above 5k topics, Expand All above 8k
 
-**Not ported**
-- Sparkplug B decoding
-- Last will messages
-- The AI assistant
-- Windows and Linux
+**[Not ported](docs/differences-from-upstream.md#not-ported)**
+- Sparkplug B decoding, planned
+- Last will messages, planned
+- The AI assistant, not planned
+- Windows and Linux, use the original
 
 ## Build
 

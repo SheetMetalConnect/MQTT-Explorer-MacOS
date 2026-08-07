@@ -1,92 +1,100 @@
-# What changed compared to the original
+# Compared to the original
 
-The original [MQTT Explorer](https://mqtt-explorer.com) by Thomas Nordquist
-is an Electron app: Chromium, Node and a React frontend talking to a Node
-backend over IPC. This is a rewrite in Swift and SwiftUI. No shared code,
-no bundled browser, one binary for Apple Silicon.
+The original [MQTT Explorer](https://mqtt-explorer.com) is an Electron app.
+This is a Swift rewrite. No shared code.
 
-The feature set is the same. What follows is where the two genuinely
-differ.
-
-## Native instead of Electron
+## Runtime
 
 | | Original | This build |
 |---|---|---|
-| Runtime | Electron (Chromium + Node) | Swift binary, arm64 |
-| UI | React + Material UI | SwiftUI |
-| Download | ~90 MB installer | ~5 MB DMG |
-| Appearance | Its own theme | System light and dark, real macOS controls |
+| Stack | Electron, React, Material UI | Swift, SwiftUI |
+| Download | ~90 MB | ~5 MB |
+| Platforms | macOS, Windows, Linux | macOS 15+, arm64 |
+| Appearance | Own theme | System light and dark |
 
-Practical effects: it launches immediately, holds a fraction of the memory,
-respects your appearance and accent color, and behaves like a Mac app.
-Standard controls pick up Liquid Glass on macOS 26.
+## Topic tree
 
-## How the topic tree is built
+The original merges messages on the main thread every 300 ms, which is what
+freezes the window under load.
 
-The original merges messages into the tree on the main thread every 300 ms.
-Under load that is what freezes the window.
+Here the merge runs in an actor off the main thread. Messages reach it in
+wire order through a lock-guarded inbox. Four times a second the main
+thread takes a delta and touches only the rows it changes, and only when
+those rows are visible. Counts are tracked as they change rather than by
+walking the tree.
 
-Here the tree lives in a Swift actor off the main thread. Messages land in
-a lock-guarded inbox straight from the network event loop, so wire order is
-preserved, and the merge happens away from the UI. Four times a second the
-main thread picks up a delta of what actually changed and touches only
-those rows. Message and topic totals are tracked as they change instead of
-being recounted by walking the tree.
+Measured: 19,000 topics and 98,000 messages while staying responsive, and a
+10,000-topic tree built in 0.13 seconds. Benchmarks live in the test suite.
 
-The result is that a busy public broker is usable rather than a hang.
+## Added
 
-## Value mode
+**Value mode.** A third render mode beside Diff and Raw, for payloads that
+hold numbers.
 
-Both apps render payloads as JSON, text or a hex dump, and both diff the
-current message against the previous one.
+| Payload | Renders as |
+|---|---|
+| One number | Trend plot with the change since the last message |
+| JSON object | A sparkline per numeric field, plus a ring showing the split |
+| Numeric array | Bar chart |
 
-This build adds a third mode for payloads that hold numbers:
+**Chart a whole topic.** One button plots everything measurable on a topic
+and its direct children, whether the values arrive as JSON fields or as
+separate topics.
 
-- a single number gets a live trend plot and the change since the last
-  message
-- a JSON object gets one row per numeric field, each with a sparkline, plus
-  a ring showing how the fields divide the total
-- a numeric array gets a bar chart
+**JSON as a field table.** Raw mode flattens objects to dot paths with a
+chart button per numeric field.
 
-The mode only appears when there is something numeric to draw. Anything
-plotted can still be pinned to the chart panel.
+**Payload markers.** `{}` `[]` `#` `Aa` `hex` beside each topic name.
 
-## Limits on large brokers
+**Data contracts.** Segments starting with an underscore are tinted, the
+UNS convention for `_historian` and `_process`.
 
-The original will happily try to expand a hundred thousand topics.
+**Live values.** Any branch lists its direct children by what changed most
+recently, with a switch for the last ten seconds only.
 
-Here, auto-expansion stops above 5000 topics and Expand All declines rather
-than opening tens of thousands of rows, telling you to filter first.
-Topics are capped at 100k. When messages arrive faster than they can be
-merged, the status bar reports how many were dropped instead of letting
-memory grow until the process dies.
+**Diagnostics.** A session log, and JSON export or import of connections.
+Passwords stay in the Keychain.
 
-## Bugs fixed along the way
+## Layout
 
-Several of these came from reading the upstream issue tracker, checking
-whether the same defect existed here, and fixing the ones that did.
+Three columns instead of a bottom dock: tree, details, charts. Last
+message, QoS and retained state share one status line. Settings is split
+into General, Broker and Diagnostics.
 
-- Messages could reach the tree out of order, so a topic occasionally
-  settled on a stale value.
+## Limits
+
+| | Behaviour |
+|---|---|
+| Above 5,000 topics | Auto-expand stops |
+| Above 8,000 topics | Offers to collapse or search |
+| Above 100,000 topics | New topics refused, count reported |
+| Merge falls behind | Dropped messages shown in the status bar |
+
+## Bugs fixed
+
+Found by reading the upstream tracker and checking whether the same defect
+existed here.
+
+- Messages could reach the tree out of order, leaving a topic on a stale
+  value
 - A topic deleted and republished within the same quarter second vanished
-  for the rest of the session.
-- A subscription the broker rejected showed up as an empty tree with no
-  explanation.
-- Retained state was lost on the first live publish under MQTT 3.1.1, where
-  the broker clears the flag.
-- Charts kept pointing at topics that had been cleared while the tree was
-  paused.
-- Copy and Save did nothing on a binary payload.
-- The status bar could name a different broker than the one connected.
+  for the session
+- A rejected subscription showed as an empty tree with no explanation
+- Retained state was lost on the first live publish under MQTT 3.1.1
+- Charts kept pointing at topics cleared while paused
+- Copy and Save did nothing on binary payloads
+- The status bar could name a broker other than the connected one
 
-## Not included
+## Not ported
 
-- Sparkplug B decoding. Deferred.
-- Last will messages. Not ported yet.
-- The AI assistant, left out on purpose.
-- Windows and Linux. Use the original.
+| | Status |
+|---|---|
+| [Sparkplug B](https://sparkplug.eclipse.org/) decoding | Planned |
+| [Last will messages](https://mqtt.org/) | Planned |
+| The AI assistant | Not planned |
+| Windows and Linux | Not planned, use the original |
 
-## Licensing
+## License
 
-Same license as the original, CC BY-ND 4.0. The original MQTT Explorer is
-by Thomas Nordquist; this macOS version is by Luke van Enkhuizen.
+CC BY-ND 4.0, same as the original. Original MQTT Explorer by Thomas
+Nordquist. macOS version by Luke van Enkhuizen.

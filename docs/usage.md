@@ -1,12 +1,18 @@
-# Using MQTT Explorer for macOS
+# Usage
+
+- [Install](#install)
+- [Connecting](#connecting)
+- [The tree](#the-tree)
+- [Reading a topic](#reading-a-topic)
+- [Charts](#charts)
+- [Publishing](#publishing)
+- [Settings](#settings)
+- [Shortcuts](#shortcuts)
 
 ## Install
 
-Open the DMG, drag MQTT Explorer to Applications.
-
-The app is signed ad-hoc rather than notarized, so the first launch gets
-blocked. Right-click it in Finder, choose Open, confirm. Or clear the flag
-yourself:
+Open the DMG, drag MQTT Explorer to Applications. Signed ad-hoc, not
+notarized, so the first launch needs right-click, Open, confirm. Or:
 
 ```sh
 xattr -dr com.apple.quarantine "/Applications/MQTT Explorer.app"
@@ -14,132 +20,109 @@ xattr -dr com.apple.quarantine "/Applications/MQTT Explorer.app"
 
 ## Connecting
 
-Add a connection on the start screen:
+| Field | Notes |
+|---|---|
+| Host, port | 1883 plain, 8883 TLS |
+| Encryption (tls) | Optional certificate validation |
+| Protocol | `mqtt://` or `ws://`, which takes a basepath |
+| Username, password | Passwords go to the Keychain |
+| Subscriptions | One per line, each with its own QoS. `#` gets everything |
+| MQTT version | 5.0 default, 3.1.1 available, plus an optional client ID |
 
-- **Host** and **port**. 1883 plain, 8883 with TLS.
-- **Encryption (tls)** turns on TLS, with optional certificate validation.
-- **Protocol**: `mqtt://` or `ws://` for WebSocket, which takes a basepath.
-- **Username and password** if the broker wants them. Passwords go to the
-  Keychain, not the config file.
-- **Subscriptions**: which topics to watch, each with its own QoS. `#` gets
-  everything.
-- **MQTT version**: 5.0 by default, 3.1.1 if you need it, plus an optional
-  client ID.
-
-Connections are saved as profiles, so a homelab broker and a production one
-sit side by side. A dropped connection reconnects on its own.
-
-If the broker refuses a subscription you get told, rather than staring at
-an empty tree.
+Connections save as profiles. A dropped connection reconnects on its own.
+A subscription the broker refuses is reported rather than leaving an empty
+tree.
 
 ## The tree
 
-Topics appear as they arrive.
+| Action | How |
+|---|---|
+| Filter | Type in the field, or Cmd-F |
+| Expand or collapse all | The two buttons beside the filter |
+| Open a topic | Click it |
+| Freeze updates | `p`. Changes keep recording and apply on resume |
 
-- Type in the filter, or hit Cmd-F to jump to it.
-- The two buttons next to it expand or collapse everything.
-- Click a topic to open it on the right.
-- The bar along the bottom shows the connection, the broker you are
-  actually attached to, and how many topics and messages are in the tree.
+The status bar shows the connected broker, topic and message counts, and a
+warning if messages arrived faster than they could be merged.
 
-Press `p` to freeze the tree. Changes keep recording while paused and get
-applied when you resume.
-
-On a large broker the tree stops auto-expanding past 5000 topics, and
-Expand All will refuse rather than open tens of thousands of rows. Filter
-first. If messages ever come in faster than they can be merged, the status
-bar says how many were dropped.
+Above 5,000 topics the tree stops auto-expanding. Above 8,000 it offers to
+collapse or search instead.
 
 ## Reading a topic
 
-The workspace drills left to right: the tree picks a topic, the middle panel
-inspects it, and charts stack up on the right as you add them.
+Left to right: the tree picks a topic, the middle panel inspects it, charts
+stack on the right.
 
-Selecting a topic gives you, top to bottom:
+**Path** with three buttons: chart everything measurable on the topic and
+its children, copy, and delete. Delete publishes an empty payload, which
+clears a retained message. On a branch it clears the whole subtree.
 
-**The path**, with a chart button, copy and delete. The chart button plots
-everything measurable at once, whether the numbers arrive as fields of a
-single JSON payload or as separate child topics. Delete publishes an empty
-payload, which is how you clear a retained message. On a topic with children
-it clears the whole subtree.
+**Status line** with the time of the last message, its QoS, and retained
+state. Retained shows in orange with a pin, and the x clears it on the
+broker.
 
-**A status line**: when the last message landed, its QoS, and whether the
-value is retained. Retained shows in orange with a pin, and the x beside it
-clears the value on the broker.
+**Value** in one of three modes:
 
-**The value**, in one of three modes:
+| Mode | Shows |
+|---|---|
+| Diff | What changed against the previous message |
+| Raw | The payload as JSON fields, text, or a hex dump |
+| Value | Numbers charted: a trend plot, per-field sparklines with a share ring, or a bar chart |
 
-- *Diff* highlights what changed against the previous message.
-- *Raw* shows the payload as it arrived, as highlighted JSON, text or a hex
-  dump.
-- *Value* appears when the payload holds numbers, and charts them. One
-  number gets a trend plot. A JSON object gets a row per numeric field with
-  its own sparkline, plus a ring showing how the fields divide the total. A
-  numeric array gets a bar chart.
+Copy and Save handle binary payloads.
 
-Copy and Save sit on the right and handle binary payloads too.
+**Live values** on any branch: direct children sorted by what changed most
+recently, with value, time and message count. Recent only narrows to the
+last ten seconds. Click a row to jump to it.
 
-**Live values**, on any topic with children. A table of the direct children
-sorted by what changed most recently, with the current value, the time and
-the message count. Flip on Recent only and it narrows to what moved in the
-last ten seconds, which is how you find the one sensor that is actually
-reporting inside a branch of two hundred. Click a row to jump to it.
+**History**, newest first. Click a message to diff against it. Numeric
+messages get a sparkline and a chart button.
 
-**History**, newest first. Click a message to diff against it and see its
-payload. Numeric messages get a sparkline and a button to chart them.
+### Payload markers
 
-**Counts** for the topic and its subtree.
+| Marker | Payload |
+|---|---|
+| `{}` | JSON object |
+| `[]` | JSON array |
+| `#` | Number |
+| `Aa` | Text |
+| `hex` | Binary |
 
-## Publishing
-
-The Publish tab takes a topic, a payload, a QoS and a retain flag. Useful
-for poking an actuator, or for clearing a retained value by publishing an
-empty one.
+Topic segments starting with an underscore are tinted, following the UNS
+convention for `_historian`, `_analytics` and similar. Both markers can be
+turned off under Settings, Payloads.
 
 ## Charts
 
-Click the chart button on any numeric value and it lands in the column on
-the right. Per chart you can pause it, set the value and time ranges, and
-change the interpolation and color. Hovering gives you the exact reading.
-
+Any chart button sends a value to the right-hand column. Per chart: pause,
+value and time ranges, interpolation, color. Hover for the exact reading.
 Charts are remembered per connection.
 
-## Reading an unfamiliar namespace
+## Publishing
 
-Two things in the tree are there for integration work, where the same broker
-carries ERP records, MES events and raw sensor values.
-
-Each topic shows what its payload holds: `{}` for a JSON object, `[]` for an
-array, `#` for a number, `Aa` for text, `hex` for binary. Business data and
-telemetry stop looking alike at a glance.
-
-Topic segments starting with an underscore are tinted, following the UNS
-convention where `_historian`, `_analytics` and similar mark where a
-namespace stops being structure and starts carrying payload.
-
-Both can be turned off under Settings, Payloads.
+The Publish tab takes a topic, payload, QoS and retain flag. Publishing an
+empty retained payload clears a retained value.
 
 ## Settings
 
-In the toolbar, or Cmd-,. Three tabs:
+Cmd-, or the toolbar.
 
-**General** covers how much of the tree opens on its own (by branch width
-and by depth), payload markers, time locale and appearance.
+| Tab | Holds |
+|---|---|
+| General | Auto-expand by width and depth, payload markers, time locale, appearance |
+| Broker | `$SYS` statistics, when the broker publishes them |
+| Diagnostics | Session log, and JSON export or import of connections |
 
-**Broker** shows the `$SYS` statistics when the broker publishes them.
-
-**Diagnostics** holds the session log and the export and import of your
-connections. The export is plain JSON you can keep in a repo or hand to a
-colleague; passwords stay in the Keychain and never enter the file. Import
-merges, so it will not overwrite connections you already have.
+The export never contains passwords, and import merges rather than
+overwrites.
 
 ## Shortcuts
 
-| Key | Does |
-|-----|------|
-| Cmd-F | Jump to the filter |
-| p | Freeze or resume the tree |
-| Arrows | Move and expand in the tree |
-| Delete | Clear the selected topic and its subtree |
+| Key | Action |
+|---|---|
+| Cmd-F | Filter |
+| `p` | Freeze or resume |
+| Arrows | Move and expand |
+| Delete | Clear topic and subtree |
 | Cmd-, | Settings |
 | Cmd-Q | Quit |
