@@ -14,8 +14,6 @@ Download the DMG from the
 and drag it to Applications. The app is signed ad-hoc rather than notarized,
 so the first launch is blocked: right-click, Open, confirm.
 
-<img width="1280" alt="MQTT Explorer showing a broker with 19,000 topics" src="https://github.com/user-attachments/assets/eb426076-2a3c-4b21-a9ed-f6ccc7423872" />
-
 ## What is different
 
 Added, mostly from integration work between ERP, MES and machines:
