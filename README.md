@@ -1,5 +1,7 @@
 # MQTT Explorer for macOS
 
+<img width="1280" height="726" alt="image" src="https://github.com/user-attachments/assets/eb426076-2a3c-4b21-a9ed-f6ccc7423872" />
+
 A native macOS build of [MQTT Explorer](https://mqtt-explorer.com), the
 topic tree browser for MQTT brokers. Written in Swift and SwiftUI for Apple
 Silicon. No Electron, no browser engine: one small binary that starts
