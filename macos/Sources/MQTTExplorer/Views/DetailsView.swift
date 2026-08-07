@@ -18,7 +18,6 @@ struct DetailsView: View {
                     HistoryView(model: model, topic: node.path, history: history)
                     statistics(node)
                     Spacer(minLength: 0)
-                    aboutButton
                 }
                 .padding(12)
             }
@@ -41,17 +40,9 @@ struct DetailsView: View {
             Spacer()
             Text("Select a topic to view details")
                 .foregroundStyle(.secondary)
-            aboutButton
             Spacer()
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private var aboutButton: some View {
-        Button("About MQTT Explorer") {
-            model.aboutVisible = true
-        }
-        .buttonStyle(.bordered)
     }
 
     // MARK: Breadcrumb + copy + delete
@@ -83,7 +74,7 @@ struct DetailsView: View {
                 Button {
                     Task { await model.clearTopic(path: node.path, recursive: true) }
                 } label: {
-                    Image(systemName: "arrow.triangle.branch")
+                    Image(systemName: "folder.badge.minus")
                 }
                 .buttonStyle(.borderless)
                 .help("Delete topic and all subtopics")
@@ -225,7 +216,12 @@ struct DetailsView: View {
             Divider().frame(height: 32)
             stat("Total", value: node.leafMessageCount)
         }
-        .padding(.top, 8)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(
+            Color(nsColor: .underPageBackgroundColor),
+            in: RoundedRectangle(cornerRadius: 6)
+        )
     }
 
     private func stat(_ title: String, value: Int) -> some View {

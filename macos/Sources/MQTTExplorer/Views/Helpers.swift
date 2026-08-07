@@ -2,9 +2,21 @@ import AppKit
 import SwiftUI
 
 extension Notification.Name {
-    /// Posted by the Find menu command (Cmd-F) so the toolbar search field
-    /// can take focus.
+    /// Posted by the Find menu command (Cmd-F) so the tree filter field can
+    /// take focus.
     static let focusSearch = Notification.Name("MQTTExplorerFocusSearch")
+}
+
+extension View {
+    /// Liquid Glass on macOS 26+, regular material on earlier systems.
+    @ViewBuilder
+    func glassSurface(cornerRadius: CGFloat) -> some View {
+        if #available(macOS 26.0, *) {
+            glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius))
+        } else {
+            background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+        }
+    }
 }
 
 enum Clipboard {

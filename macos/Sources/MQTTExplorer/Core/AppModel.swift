@@ -141,6 +141,9 @@ final class AppModel {
     /// Live buffer stats polled while paused ("N changes, buffer at X%").
     var bufferChanges = 0
     var bufferFill = 0.0
+    /// Tree totals for the status bar.
+    var topicCount = 0
+    var messageCount = 0
 
     // MARK: Profile management
 
@@ -208,6 +211,8 @@ final class AppModel {
         phase = .connecting
         connectedProfileId = profile.id
         compareMessage = nil
+        topicCount = 0
+        messageCount = 0
         saveConfig()
         // Fresh tree per connection.
         Task {
@@ -241,6 +246,8 @@ final class AppModel {
         phase = .disconnected
         connectedProfileId = nil
         settings.topicFilter = ""
+        topicCount = 0
+        messageCount = 0
         saveConfig()
         Task {
             await manager.disconnect()
@@ -295,6 +302,9 @@ final class AppModel {
                     charts.removeCharts(for: path)
                     chartsChanged()
                 }
+                let counts = await engine.counts()
+                topicCount = counts.topics
+                messageCount = counts.messages
             }
         }
     }
@@ -317,6 +327,9 @@ final class AppModel {
                     tree.apply(delta)
                     for update in delta.added { charts.ingest(update: update) }
                     for update in delta.updated { charts.ingest(update: update) }
+                    let counts = await engine.counts()
+                    topicCount = counts.topics
+                    messageCount = counts.messages
                 }
                 showNotification("Successfully applied \(count) changes.")
             }

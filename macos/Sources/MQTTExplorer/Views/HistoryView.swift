@@ -41,6 +41,12 @@ struct HistoryView: View {
                 .frame(maxHeight: 230)
             }
         }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color(nsColor: .underPageBackgroundColor),
+            in: RoundedRectangle(cornerRadius: 6)
+        )
     }
 
     private func historyRow(index: Int, message: StoredMessage) -> some View {
@@ -50,7 +56,7 @@ struct HistoryView: View {
 
         return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                Image(systemName: isSelected ? "chevron.right.circle.fill" : "chevron.right.circle")
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 11))
                     .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                 Text(title(for: index))

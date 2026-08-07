@@ -16,7 +16,13 @@ struct MQTTExplorerApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
 
-            // Find Topic: Cmd-F focuses the toolbar search field.
+            CommandGroup(replacing: .appInfo) {
+                Button("About MQTT Explorer") {
+                    model.aboutVisible = true
+                }
+            }
+
+            // Find Topic: Cmd-F focuses the tree filter field.
             CommandGroup(after: .toolbar) {
                 Button("Find Topic") {
                     NotificationCenter.default.post(name: .focusSearch, object: nil)

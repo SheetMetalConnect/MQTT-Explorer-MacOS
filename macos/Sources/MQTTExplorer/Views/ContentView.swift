@@ -1,11 +1,10 @@
 import SwiftUI
 
 /// Main window: toolbar, workspace (tree + charts + sidebar) or the
-/// connection setup view, plus notifications and confirmations.
+/// connection setup view, a status footer, notifications and confirmations.
 struct ContentView: View {
     @Bindable var model: AppModel
     @Environment(\.openSettings) private var openSettings
-    @FocusState private var searchFocused: Bool
 
     var body: some View {
         Group {
@@ -17,8 +16,11 @@ struct ContentView: View {
         }
         .toolbar { titleBar }
         .navigationTitle("MQTT Explorer")
-        .overlay(alignment: .bottomLeading) {
-            notificationBanner
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                notificationBanner
+                statusBar
+            }
         }
         .alert(
             model.pendingConfirmation?.title ?? "",
@@ -36,9 +38,6 @@ struct ContentView: View {
             AboutView()
         }
         .preferredColorScheme(colorScheme)
-        .onReceive(NotificationCenter.default.publisher(for: .focusSearch)) { _ in
-            searchFocused = true
-        }
     }
 
     /// The connection setup replaces the workspace while not connected.
@@ -85,10 +84,6 @@ struct ContentView: View {
             .help("Settings")
         }
 
-        ToolbarItem(placement: .principal) {
-            searchBar
-        }
-
         ToolbarItemGroup(placement: .primaryAction) {
             pauseButton
             if showsWorkspace {
@@ -100,24 +95,6 @@ struct ContentView: View {
                 .help("Disconnect from the broker")
             }
             healthIndicator
-        }
-    }
-
-    private var searchBar: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Search…", text: $model.settings.topicFilter)
-                .textFieldStyle(.plain)
-                .focused($searchFocused)
-                .disabled(!model.phase.isActive)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(RoundedRectangle(cornerRadius: 6).fill(.quaternary.opacity(0.5)))
-        .frame(minWidth: 160, maxWidth: 320)
-        .onChange(of: model.phase.isActive) { _, active in
-            searchFocused = active
         }
     }
 
@@ -152,16 +129,44 @@ struct ContentView: View {
     }
 
     /// Connection health: green online, orange connecting, red offline.
-    private var healthIndicator: some View {
-        let color: Color = switch model.phase.health {
+    private var healthColor: Color {
+        switch model.phase.health {
         case "online": .green
         case "connecting": .orange
         default: .red
         }
-        return Circle()
-            .fill(model.phase.isActive ? color : Color.gray.opacity(0.5))
+    }
+
+    private var healthIndicator: some View {
+        Circle()
+            .fill(model.phase.isActive ? healthColor : Color.gray.opacity(0.5))
             .frame(width: 10, height: 10)
             .help(model.phase.label)
+    }
+
+    // MARK: Status footer
+
+    private var statusBar: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(model.phase.isActive ? healthColor : Color.gray.opacity(0.5))
+                .frame(width: 8, height: 8)
+            Text(model.phase.label)
+            if model.phase.isActive, let profile = model.selectedProfile {
+                Text("\(profile.host):\(profile.port)")
+            }
+            Spacer()
+            if model.phase.isActive {
+                Text("\(model.topicCount) topics · \(model.messageCount) messages")
+                    .monospacedDigit()
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
     }
 
     // MARK: Notifications
@@ -184,11 +189,7 @@ struct ContentView: View {
         .font(.callout)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.gray.opacity(0.2))
-        )
+        .glassSurface(cornerRadius: 8)
         .padding(12)
         .transition(.opacity)
     }

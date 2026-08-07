@@ -145,6 +145,30 @@ final class UITreeModel {
         rebuildRows()
     }
 
+    func expandAll() {
+        var changed = false
+        for node in index.values where !node.expanded && node.childCount > 0 {
+            node.expanded = true
+            changed = true
+        }
+        if changed {
+            structureVersion += 1
+            rebuildRows()
+        }
+    }
+
+    func collapseAll() {
+        var changed = false
+        for node in index.values where node !== root && node.expanded {
+            node.expanded = false
+            changed = true
+        }
+        if changed {
+            structureVersion += 1
+            rebuildRows()
+        }
+    }
+
     func clear() {
         root.children.removeAll()
         root.childOrder.removeAll()

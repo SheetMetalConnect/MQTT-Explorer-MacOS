@@ -392,7 +392,7 @@ struct TopicChartView: View {
         }
         .font(.caption2)
         .padding(6)
-        .background(RoundedRectangle(cornerRadius: 4).fill(.regularMaterial))
+        .glassSurface(cornerRadius: 4)
         .padding(4)
     }
 

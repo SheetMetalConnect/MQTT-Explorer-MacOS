@@ -215,6 +215,22 @@ actor TopicTreeEngine {
         (pending.count, Double(pending.count) / Double(Self.maxPending))
     }
 
+    /// Total topics and messages in the tree, for the status bar.
+    func counts() -> (topics: Int, messages: Int) {
+        var topics = 0
+        var messages = 0
+        var stack = [root]
+        while let node = stack.popLast() {
+            for name in node.childOrder {
+                guard let child = node.children[name] else { continue }
+                topics += 1
+                messages += child.messageCount
+                stack.append(child)
+            }
+        }
+        return (topics, messages)
+    }
+
     func reset() {
         root.children.removeAll()
         root.childOrder.removeAll()

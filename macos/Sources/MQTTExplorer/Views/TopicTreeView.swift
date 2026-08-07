@@ -6,6 +6,7 @@ import SwiftUI
 /// clears a topic recursively.
 struct TopicTreeView: View {
     @Bindable var model: AppModel
+    @FocusState private var searchFocused: Bool
 
     /// Route List selection changes through selectTopic so the publish topic
     /// follows the selection and the compare message resets.
@@ -19,6 +20,65 @@ struct TopicTreeView: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            treeList
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .focusSearch)) { _ in
+            searchFocused = true
+        }
+    }
+
+    /// Filter field and expand/collapse-all controls above the tree.
+    private var header: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: "magnifyingglass")
+                    .imageScale(.small)
+                    .foregroundStyle(.secondary)
+                TextField("Filter topics", text: $model.settings.topicFilter)
+                    .textFieldStyle(.plain)
+                    .focused($searchFocused)
+                if !model.settings.topicFilter.isEmpty {
+                    Button {
+                        model.settings.topicFilter = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Clear filter")
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 5).fill(.quaternary.opacity(0.5)))
+
+            Spacer(minLength: 0)
+
+            Button {
+                model.tree.expandAll()
+            } label: {
+                Image(systemName: "rectangle.expand.vertical")
+            }
+            .buttonStyle(.borderless)
+            .help("Expand all topics")
+
+            Button {
+                model.tree.collapseAll()
+            } label: {
+                Image(systemName: "rectangle.compress.vertical")
+            }
+            .buttonStyle(.borderless)
+            .help("Collapse all topics")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .onAppear { searchFocused = true }
+    }
+
+    private var treeList: some View {
         ScrollViewReader { proxy in
             List(selection: selection) {
                 rootRow
