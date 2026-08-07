@@ -43,6 +43,12 @@ arrive.
 Pause with `p` (or the toolbar button) to freeze the tree; changes keep
 recording into a buffer and are applied when you resume.
 
+On a busy broker the tree stops expanding automatically past 5000 topics,
+and Expand All refuses rather than opening tens of thousands of rows. Use
+the filter to narrow down first. If messages ever arrive faster than they
+can be merged, the status bar reports how many were dropped instead of
+letting memory grow without bound.
+
 ## The Details tab
 
 Selecting a topic shows, top to bottom:
@@ -53,9 +59,14 @@ Selecting a topic shows, top to bottom:
 - **Status bar**: time of the last message, QoS, and the retained state.
   A retained message is marked in orange with a pin; the x next to it
   clears the retained message
-- **Current value**: the latest payload. Diff mode highlights what changed
-  compared to the previous message; Raw shows the full payload as
-  highlighted JSON, text or hex. Copy and save buttons sit on the right
+- **Current value**: the latest payload, in one of three modes. Diff
+  highlights what changed against the previous message. Raw shows the full
+  payload as highlighted JSON, text or hex. Value appears whenever the
+  payload holds numbers and charts them: a single number gets a live trend
+  plot, a JSON object gets one row per numeric field with its own sparkline
+  plus a ring showing each field's share, and a numeric array gets a bar
+  chart. Copy and save buttons sit on the right and fall back to a hex dump
+  or the raw bytes for binary payloads
 - **History**: expand to see previous messages, newest first. Click a
   message to select it as the diff reference and view its payload; numeric
   messages get a sparkline and a chart button

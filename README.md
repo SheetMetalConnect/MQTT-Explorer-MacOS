@@ -17,6 +17,9 @@ the original project.
 - Expand / collapse the whole tree with one click
 - JSON, text and binary payload rendering with a diff view against the
   previous message
+- Automatic visualization of numeric payloads: trend plots for single
+  values, per-field sparklines and share rings for JSON objects, bar
+  charts for numeric arrays
 - Retained message handling: clearly marked in the status bar, clearable
   with one click
 - Per-topic history with sparklines, message compare and copy
@@ -53,7 +56,7 @@ open it and drag MQTT Explorer to Applications. Or build it yourself:
 
 ```sh
 cd macos
-./make-dmg.sh        # -> macos/build/MQTT Explorer-1.0.0.dmg
+./make-dmg.sh        # -> macos/build/MQTT Explorer-1.1.0.dmg
 ```
 
 ## Usage
