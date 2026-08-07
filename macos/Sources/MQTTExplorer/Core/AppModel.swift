@@ -540,4 +540,42 @@ final class AppModel {
         }
         chartsChanged()
     }
+
+    /// Chart everything measurable at this topic, whether the values arrive as
+    /// fields of one JSON payload or as separate child topics. Capped so a
+    /// wide branch cannot fill the panel with hundreds of plots.
+    static let bulkChartLimit = 12
+
+    @discardableResult
+    func chartEverything(at path: String) -> Int {
+        guard let node = tree.node(at: path) else { return 0 }
+        var added = 0
+
+        if let payload = node.message?.payload {
+            for field in ChartStore.plottableFields(in: payload) where added < Self.bulkChartLimit {
+                registerChart(topic: path, dotPath: field)
+                added += 1
+            }
+            if added == 0, ChartStore.value(in: payload, field: nil) != nil {
+                registerChart(topic: path, dotPath: nil)
+                added += 1
+            }
+        }
+
+        for name in node.childOrder {
+            guard added < Self.bulkChartLimit, let child = node.children[name] else { continue }
+            guard let payload = child.message?.payload, !payload.isEmpty else { continue }
+            if ChartStore.value(in: payload, field: nil) != nil {
+                registerChart(topic: child.path, dotPath: nil)
+                added += 1
+            }
+        }
+
+        if added == 0 {
+            showNotification("Nothing numeric to chart on this topic.")
+        } else if added == Self.bulkChartLimit {
+            showNotification("Charted the first \(added) values. Add more one by one.")
+        }
+        return added
+    }
 }

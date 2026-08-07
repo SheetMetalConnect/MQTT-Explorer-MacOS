@@ -52,11 +52,16 @@ bar says how many were dropped.
 
 ## Reading a topic
 
+The workspace drills left to right: the tree picks a topic, the middle panel
+inspects it, and charts stack up on the right as you add them.
+
 Selecting a topic gives you, top to bottom:
 
-**The path**, with copy and delete. Delete publishes an empty payload,
-which is how you clear a retained message. On a topic with children it
-clears the whole subtree.
+**The path**, with a chart button, copy and delete. The chart button plots
+everything measurable at once, whether the numbers arrive as fields of a
+single JSON payload or as separate child topics. Delete publishes an empty
+payload, which is how you clear a retained message. On a topic with children
+it clears the whole subtree.
 
 **A status line**: when the last message landed, its QoS, and whether the
 value is retained. Retained shows in orange with a pin, and the x beside it
@@ -74,6 +79,12 @@ clears the value on the broker.
 
 Copy and Save sit on the right and handle binary payloads too.
 
+**Live values**, on any topic with children. A table of the direct children
+sorted by what changed most recently, with the current value, the time and
+the message count. Flip on Recent only and it narrows to what moved in the
+last ten seconds, which is how you find the one sensor that is actually
+reporting inside a branch of two hundred. Click a row to jump to it.
+
 **History**, newest first. Click a message to diff against it and see its
 payload. Numeric messages get a sparkline and a button to chart them.
 
@@ -87,10 +98,9 @@ empty one.
 
 ## Charts
 
-Click the chart button on any numeric value and it lands in the panel below
-the tree. Per chart you can pause it, set the value and time ranges, and
-change the interpolation, color and width. Hovering gives you the exact
-reading.
+Click the chart button on any numeric value and it lands in the column on
+the right. Per chart you can pause it, set the value and time ranges, and
+change the interpolation and color. Hovering gives you the exact reading.
 
 Charts are remembered per connection.
 

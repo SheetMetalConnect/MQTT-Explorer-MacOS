@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 APP_NAME="MQTT Explorer"
-VERSION="1.2.0"
+VERSION="1.3.0"
 APP_DIR="build/$APP_NAME.app"
 DMG="build/$APP_NAME-$VERSION.dmg"
 STAGING="build/dmg-staging"

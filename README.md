@@ -61,7 +61,7 @@ macOS 15 or newer, Xcode 26 or the matching command line tools.
 ```sh
 cd macos
 ./make-app.sh        # -> macos/build/MQTT Explorer.app
-./make-dmg.sh        # -> macos/build/MQTT Explorer-1.2.0.dmg
+./make-dmg.sh        # -> macos/build/MQTT Explorer-1.3.0.dmg
 swift test           # live broker tests skip without one on localhost:1883
 ```
 

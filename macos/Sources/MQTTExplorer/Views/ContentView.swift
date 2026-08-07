@@ -56,18 +56,17 @@ struct ContentView: View {
         }
     }
 
+    /// Drill down left to right: pick a topic, inspect it, then chart it.
     private var workspace: some View {
         HSplitView {
-            VSplitView {
-                TopicTreeView(model: model)
-                    .frame(minHeight: 120)
-                if model.chartPanelVisible {
-                    ChartPanelView(model: model)
-                        .frame(minHeight: 170)
-                }
-            }
+            TopicTreeView(model: model)
+                .frame(minWidth: 260, idealWidth: 380)
             SidebarView(model: model)
-                .frame(minWidth: 250, idealWidth: 420)
+                .frame(minWidth: 320, idealWidth: 460)
+            if model.chartPanelVisible {
+                ChartPanelView(model: model)
+                    .frame(minWidth: 300, idealWidth: 420)
+            }
         }
     }
 

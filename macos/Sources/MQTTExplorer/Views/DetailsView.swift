@@ -20,8 +20,14 @@ struct DetailsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     breadcrumb(node)
                     statusLine(node)
-                    currentValueToolbar(node)
-                    currentValue(node)
+                    if node.message != nil {
+                        currentValueToolbar(node)
+                        currentValue(node)
+                    }
+                    if node.childCount > 0 {
+                        if node.message != nil { Divider() }
+                        ActivityTableView(model: model, node: node)
+                    }
                     Divider()
                     HistoryView(model: model, topic: node.path, history: history)
                     Divider()
@@ -57,6 +63,14 @@ struct DetailsView: View {
                 .lineLimit(2)
                 .textSelection(.enabled)
             Spacer(minLength: 4)
+            Button {
+                model.chartEverything(at: node.path)
+            } label: {
+                Image(systemName: "chart.xyaxis.line")
+            }
+            .buttonStyle(.borderless)
+            .help("Chart every value on this topic and its direct children")
+
             Button {
                 Clipboard.copy(node.path)
             } label: {

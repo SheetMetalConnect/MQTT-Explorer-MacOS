@@ -59,46 +59,9 @@ enum ChartColors {
     }
 }
 
-/// The chart panel below the tree. Charts are laid out on a 12 column grid,
-/// each chart choosing 4/6/12 columns.
+/// The chart column on the right of the workspace.
 struct ChartPanelView: View {
     @Bindable var model: AppModel
-
-    private var spacingUnits: Int {
-        let count = model.charts.series.count
-        if count >= 5 { return 4 }
-        if count >= 2 { return 6 }
-        return 12
-    }
-
-    /// Grid units (out of 12) a chart occupies.
-    private func columnWidth(_ chart: ChartSeries) -> Int {
-        switch chart.parameters.width {
-        case .big: return 12
-        case .medium: return 6
-        case .small: return 4
-        case nil: return spacingUnits
-        }
-    }
-
-    /// Pack the charts into rows of 12 columns.
-    private var packedRows: [[ChartSeries]] {
-        var rows: [[ChartSeries]] = []
-        var current: [ChartSeries] = []
-        var used = 0
-        for chart in model.charts.series {
-            let width = columnWidth(chart)
-            if used + width > 12, !current.isEmpty {
-                rows.append(current)
-                current = []
-                used = 0
-            }
-            current.append(chart)
-            used += width
-        }
-        if !current.isEmpty { rows.append(current) }
-        return rows
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -117,39 +80,34 @@ struct ChartPanelView: View {
         HStack {
             Text("Charts")
                 .font(.headline)
+            if !model.charts.series.isEmpty {
+                Text("\(model.charts.series.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
             Spacer()
             Button {
                 model.chartPanelVisible = false
             } label: {
-                Image(systemName: "chevron.down")
+                Image(systemName: "sidebar.trailing")
             }
             .buttonStyle(.borderless)
-            .help("Close the chart panel")
+            .help("Hide the chart panel")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
     }
 
+    /// Charts stack down the column, newest work at the top.
     private var chartGrid: some View {
-        GeometryReader { geo in
-            ScrollView(.vertical) {
-                VStack(spacing: CGFloat(spacingUnits) * 2) {
-                    ForEach(Array(packedRows.enumerated()), id: \.offset) { _, row in
-                        HStack(spacing: CGFloat(spacingUnits) * 2) {
-                            ForEach(row) { chart in
-                                TopicChartView(model: model, chart: chart)
-                                    .frame(
-                                        width: (geo.size.width - CGFloat(spacingUnits) * 2 * CGFloat(row.count + 1))
-                                            * CGFloat(columnWidth(chart)) / 12
-                                    )
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal, CGFloat(spacingUnits))
-                    }
+        ScrollView(.vertical) {
+            LazyVStack(spacing: 10) {
+                ForEach(model.charts.series) { chart in
+                    TopicChartView(model: model, chart: chart)
                 }
-                .padding(.vertical, CGFloat(spacingUnits))
             }
+            .padding(10)
         }
     }
 
@@ -413,15 +371,6 @@ struct TopicChartView: View {
             }
         }
 
-        Menu("Size") {
-            Picker("Size", selection: widthBinding) {
-                Text("auto").tag(ChartWidth?.none)
-                Text("100% width").tag(ChartWidth?.some(.big))
-                Text("50% width").tag(ChartWidth?.some(.medium))
-                Text("33% width").tag(ChartWidth?.some(.small))
-            }
-        }
-
         Menu("Color") {
             Button {
                 mutate { $0.color = nil }
@@ -465,13 +414,6 @@ struct TopicChartView: View {
         Binding(
             get: { chart.parameters.interpolation ?? .curve },
             set: { value in mutate { $0.interpolation = value } }
-        )
-    }
-
-    private var widthBinding: Binding<ChartWidth?> {
-        Binding(
-            get: { chart.parameters.width },
-            set: { value in mutate { $0.width = value } }
         )
     }
 
