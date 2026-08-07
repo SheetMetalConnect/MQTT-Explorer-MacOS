@@ -141,3 +141,40 @@ final class JsonLiteralScannerTests: XCTestCase {
         XCTAssertEqual(literals[4]?.value as? Double, 10)
     }
 }
+
+final class ValueShapeTests: XCTestCase {
+    func testScalarPayloads() {
+        guard case .scalar(let value) = ValueShape.of(Data("42.5".utf8)) else {
+            return XCTFail("expected scalar")
+        }
+        XCTAssertEqual(value, 42.5)
+
+        guard case .scalar(let on) = ValueShape.of(Data("on".utf8)) else {
+            return XCTFail("expected scalar from on/off")
+        }
+        XCTAssertEqual(on, 1)
+    }
+
+    func testJSONObjectBecomesFields() {
+        let payload = Data(#"{"temp": 21.5, "humidity": 60, "name": "sensor"}"#.utf8)
+        guard case .fields(let fields) = ValueShape.of(payload) else {
+            return XCTFail("expected fields")
+        }
+        XCTAssertEqual(fields.map(\.name), ["humidity", "temp"])
+        XCTAssertEqual(fields.first { $0.name == "temp" }?.value, 21.5)
+    }
+
+    func testNumericArrayBecomesSeries() {
+        guard case .series(let values) = ValueShape.of(Data("[1, 2, 3.5]".utf8)) else {
+            return XCTFail("expected series")
+        }
+        XCTAssertEqual(values, [1, 2, 3.5])
+    }
+
+    func testNonNumericPayloadsHaveNoShape() {
+        XCTAssertFalse(ValueShape.of(Data("hello".utf8)).isVisualizable)
+        XCTAssertFalse(ValueShape.of(Data()).isVisualizable)
+        XCTAssertFalse(ValueShape.of(Data(#"{"name": "only text"}"#.utf8)).isVisualizable)
+        XCTAssertFalse(ValueShape.of(Data(#"["a", "b"]"#.utf8)).isVisualizable)
+    }
+}

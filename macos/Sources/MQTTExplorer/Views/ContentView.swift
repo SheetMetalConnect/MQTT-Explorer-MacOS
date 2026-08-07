@@ -157,6 +157,12 @@ struct ContentView: View {
             }
             Spacer()
             if model.phase.isActive {
+                if model.droppedCount > 0 {
+                    Label("\(model.droppedCount) dropped", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .monospacedDigit()
+                        .help("Messages arrived faster than they could be merged. Pause or filter to keep up.")
+                }
                 Text("\(model.topicCount) topics · \(model.messageCount) messages")
                     .monospacedDigit()
             }

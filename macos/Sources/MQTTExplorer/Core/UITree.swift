@@ -30,12 +30,14 @@ final class UITopicNode {
     }
 
     func apply(_ update: NodeUpdate) {
+        let ownMessageChanged = update.messageCount != messageCount
         messageCount = update.messageCount
         lastUpdate = update.lastUpdate
-        message = update.message
         childCount = update.childCount
         leafMessageCount = update.leafMessageCount
         childTopicCount = update.childTopicCount
+        guard ownMessageChanged else { return }
+        message = update.message
         updatePulse += 1
         preview = MessageRendering.preview(for: update.message?.payload)
     }
@@ -78,7 +80,7 @@ enum TopicOrder: String, Codable, CaseIterable, Sendable {
 @MainActor
 final class UITreeModel {
     let root = UITopicNode(path: "", name: "")
-    private var index: [String: UITopicNode] = [:]
+    @ObservationIgnored private var index: [String: UITopicNode] = [:]
 
     /// Bumped whenever the set of visible rows can change (structure,
     /// expansion, filter, ordering). Payload-only updates don't bump it.
@@ -145,7 +147,11 @@ final class UITreeModel {
         rebuildRows()
     }
 
-    func expandAll() {
+    /// Expand every node. Returns false when the tree is too large to expand
+    /// safely, leaving it untouched.
+    @discardableResult
+    func expandAll() -> Bool {
+        guard index.count <= Self.autoExpandTopicCeiling else { return false }
         var changed = false
         for node in index.values where !node.expanded && node.childCount > 0 {
             node.expanded = true
@@ -155,6 +161,7 @@ final class UITreeModel {
             structureVersion += 1
             rebuildRows()
         }
+        return true
     }
 
     func collapseAll() {
@@ -192,11 +199,7 @@ final class UITreeModel {
             if selectedPath == path || selectedPath?.hasPrefix(path + "/") == true {
                 selectedPath = parentPath(of: path)
             }
-            // Drop any descendants from the index as well.
-            let prefix = path + "/"
-            for key in index.keys where key.hasPrefix(prefix) {
-                index.removeValue(forKey: key)
-            }
+            unindexDescendants(of: node)
             structureChanged = true
         }
 
@@ -321,8 +324,21 @@ final class UITreeModel {
         return node.path.localizedCaseInsensitiveContains(needle)
     }
 
+    /// Auto-expansion stops once the tree is large: opening thousands of rows
+    /// on a busy broker is both unreadable and expensive to lay out.
+    static let autoExpandTopicCeiling = 5_000
+
     private func shouldAutoExpand(_ update: NodeUpdate) -> Bool {
-        autoExpandLimit > 0 && update.childCount > 0 && update.childCount <= autoExpandLimit
+        guard autoExpandLimit > 0, index.count < Self.autoExpandTopicCeiling else { return false }
+        return update.childCount > 0 && update.childCount <= autoExpandLimit
+    }
+
+    private func unindexDescendants(of node: UITopicNode) {
+        var stack = Array(node.children.values)
+        while let current = stack.popLast() {
+            index.removeValue(forKey: current.path)
+            stack.append(contentsOf: current.children.values)
+        }
     }
 
     private func parentMirror(for path: String) -> UITopicNode? {

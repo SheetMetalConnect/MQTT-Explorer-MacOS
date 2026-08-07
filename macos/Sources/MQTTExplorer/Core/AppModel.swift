@@ -144,6 +144,7 @@ final class AppModel {
     /// Tree totals for the status bar.
     var topicCount = 0
     var messageCount = 0
+    var droppedCount = 0
 
     // MARK: Profile management
 
@@ -213,6 +214,7 @@ final class AppModel {
         compareMessage = nil
         topicCount = 0
         messageCount = 0
+        droppedCount = 0
         saveConfig()
         // Fresh tree per connection.
         Task {
@@ -248,6 +250,7 @@ final class AppModel {
         settings.topicFilter = ""
         topicCount = 0
         messageCount = 0
+        droppedCount = 0
         saveConfig()
         Task {
             await manager.disconnect()
@@ -305,6 +308,7 @@ final class AppModel {
                 let counts = await engine.counts()
                 topicCount = counts.topics
                 messageCount = counts.messages
+                droppedCount += delta.droppedMessages
             }
         }
     }

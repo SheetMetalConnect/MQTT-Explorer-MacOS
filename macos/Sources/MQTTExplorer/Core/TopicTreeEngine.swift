@@ -64,6 +64,7 @@ struct RingBuffer<Element> {
 actor TopicTreeEngine {
     final class Node {
         let name: String
+        let path: String
         unowned var parent: Node?
         var children: [String: Node] = [:]
         var childOrder: [String] = []
@@ -82,6 +83,11 @@ actor TopicTreeEngine {
         init(name: String, parent: Node?) {
             self.name = name
             self.parent = parent
+            if let parent, parent.parent != nil {
+                self.path = parent.path + "/" + name
+            } else {
+                self.path = parent == nil ? "" : name
+            }
         }
 
         var hasMessageData: Bool {
@@ -90,16 +96,6 @@ actor TopicTreeEngine {
         }
 
         var isLeaf: Bool { children.isEmpty }
-
-        var path: String {
-            var parts: [String] = []
-            var node: Node? = self
-            while let current = node, current.parent != nil {
-                parts.append(current.name)
-                node = current.parent
-            }
-            return parts.reversed().joined(separator: "/")
-        }
 
         func invalidateCountsUpwards() {
             var node: Node? = self
@@ -156,11 +152,16 @@ actor TopicTreeEngine {
     static let maxPayload = 20_000
     /// Cap for the pending buffer while the UI is paused; oldest dropped first.
     static let maxPending = 200_000
+    /// Beyond this many topics new ones are refused; existing topics keep updating.
+    static let maxTopics = 100_000
 
     private let root = Node(name: "", parent: nil)
     private var pending: [(topic: String, message: StoredMessage)] = []
     private var sequence = 0
     private var droppedMessages = 0
+    private var touched: [ObjectIdentifier: Node] = [:]
+    private var topicCount = 0
+    private var messageTotal = 0
 
     /// Called from the MQTT event loop (via a Task per message).
     func ingest(topic: String, payload: Data, qos: Int, retain: Bool) {
@@ -174,8 +175,9 @@ actor TopicTreeEngine {
         )
         sequence += 1
         if pending.count >= Self.maxPending {
-            pending.removeFirst(pending.count / 10)
-            droppedMessages += pending.count / 10
+            let drop = pending.count / 10
+            pending.removeFirst(drop)
+            droppedMessages += drop
         }
         pending.append((topic, message))
     }
@@ -192,7 +194,10 @@ actor TopicTreeEngine {
         var removedPaths = Set<String>()
 
         for (topic, message) in batch {
-            let node = nodeFor(topic: topic, created: &delta)
+            guard let node = nodeFor(topic: topic) else {
+                droppedMessages += 1
+                continue
+            }
             applyMessage(message, to: node)
 
             if !node.hasMessageData && node.isLeaf, node.parent != nil {
@@ -200,11 +205,21 @@ actor TopicTreeEngine {
             }
         }
 
-        // Resolve marks into the delta. Nodes added and removed within the
-        // same batch cancel out.
-        collectMarks(from: root, delta: &delta, removedPaths: removedPaths)
-        clearMarks(from: root)
+        for node in touched.values {
+            defer {
+                node.markedAdded = false
+                node.markedUpdated = false
+            }
+            guard node.parent != nil, !removedPaths.contains(node.path) else { continue }
+            if node.markedAdded {
+                delta.added.append(update(for: node))
+            } else if node.markedUpdated {
+                delta.updated.append(update(for: node))
+            }
+        }
+        touched.removeAll(keepingCapacity: true)
 
+        delta.added.sort { $0.path.count < $1.path.count }
         delta.removed = removedPaths.sorted()
         return delta
     }
@@ -217,18 +232,7 @@ actor TopicTreeEngine {
 
     /// Total topics and messages in the tree, for the status bar.
     func counts() -> (topics: Int, messages: Int) {
-        var topics = 0
-        var messages = 0
-        var stack = [root]
-        while let node = stack.popLast() {
-            for name in node.childOrder {
-                guard let child = node.children[name] else { continue }
-                topics += 1
-                messages += child.messageCount
-                stack.append(child)
-            }
-        }
-        return (topics, messages)
+        (topicCount, messageTotal)
     }
 
     func reset() {
@@ -238,6 +242,9 @@ actor TopicTreeEngine {
         root.messageCount = 0
         root.history = RingBuffer(capacity: Node.historyCapacity)
         pending.removeAll()
+        touched.removeAll()
+        topicCount = 0
+        messageTotal = 0
         sequence = 0
         droppedMessages = 0
     }
@@ -260,17 +267,20 @@ actor TopicTreeEngine {
 
     // MARK: - Merge internals
 
-    private func nodeFor(topic: String, created: inout TreeDelta) -> Node {
+    private func nodeFor(topic: String) -> Node? {
         var current = root
         for segment in topic.split(separator: "/", omittingEmptySubsequences: false).map(String.init) {
             if let child = current.children[segment] {
                 current = child
             } else {
+                guard topicCount < Self.maxTopics else { return nil }
                 let child = Node(name: segment, parent: current)
                 child.markedAdded = true
                 current.children[segment] = child
                 current.childOrder.append(segment)
                 child.invalidateCountsUpwards()
+                topicCount += 1
+                touched[ObjectIdentifier(child)] = child
                 current = child
             }
         }
@@ -284,48 +294,38 @@ actor TopicTreeEngine {
         node.lastUpdate = message.received
         node.markedUpdated = true
         node.invalidateCountsUpwards()
+        messageTotal += 1
+        touched[ObjectIdentifier(node)] = node
+        markAncestorsUpdated(from: node)
+    }
+
+    private func markAncestorsUpdated(from node: Node) {
+        var current = node.parent
+        while let ancestor = current, ancestor.parent != nil {
+            if touched[ObjectIdentifier(ancestor)] != nil, ancestor.markedUpdated || ancestor.markedAdded {
+                break
+            }
+            ancestor.markedUpdated = true
+            touched[ObjectIdentifier(ancestor)] = ancestor
+            current = ancestor.parent
+        }
     }
 
     private func remove(node: Node, removedPaths: inout Set<String>) {
         var current: Node? = node
         while let node = current, let parent = node.parent {
-            let path = node.path
             parent.children.removeValue(forKey: node.name)
             parent.childOrder.removeAll { $0 == node.name }
             parent.markedUpdated = true
             parent.invalidateCountsUpwards()
-            removedPaths.insert(path)
-            // Cascade: parent that became an empty leaf goes too.
+            touched[ObjectIdentifier(parent)] = parent
+            removedPaths.insert(node.path)
+            topicCount -= 1
+            messageTotal -= node.messageCount
             if parent.parent != nil, !parent.hasMessageData, parent.isLeaf {
                 current = parent
             } else {
                 current = nil
-            }
-        }
-    }
-
-    private func collectMarks(from node: Node, delta: inout TreeDelta, removedPaths: Set<String>) {
-        for name in node.childOrder {
-            guard let child = node.children[name] else { continue }
-            let path = child.path
-            if removedPaths.contains(path) {
-                continue
-            }
-            if child.markedAdded {
-                delta.added.append(update(for: child))
-            } else if child.markedUpdated {
-                delta.updated.append(update(for: child))
-            }
-            collectMarks(from: child, delta: &delta, removedPaths: removedPaths)
-        }
-    }
-
-    private func clearMarks(from node: Node) {
-        node.markedAdded = false
-        node.markedUpdated = false
-        for name in node.childOrder {
-            if let child = node.children[name] {
-                clearMarks(from: child)
             }
         }
     }

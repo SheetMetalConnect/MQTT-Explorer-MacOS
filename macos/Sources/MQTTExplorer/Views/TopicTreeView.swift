@@ -58,7 +58,9 @@ struct TopicTreeView: View {
             Spacer(minLength: 0)
 
             Button {
-                model.tree.expandAll()
+                if !model.tree.expandAll() {
+                    model.showNotification("Too many topics to expand at once. Use the filter to narrow down.")
+                }
             } label: {
                 Image(systemName: "rectangle.expand.vertical")
             }

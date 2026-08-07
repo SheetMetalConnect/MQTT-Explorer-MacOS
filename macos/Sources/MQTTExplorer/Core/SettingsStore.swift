@@ -10,6 +10,7 @@ enum ThemeChoice: String, Codable, CaseIterable, Sendable {
 enum ValueRendererDisplayMode: String, Codable, CaseIterable, Sendable {
     case diff
     case raw
+    case value
 }
 
 struct AppSettings: Codable, Sendable, Equatable {

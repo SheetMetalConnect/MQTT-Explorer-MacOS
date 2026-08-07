@@ -30,12 +30,14 @@ final class TopicTreeEngineTests: XCTestCase {
         let delta = await engine.flush()
 
         XCTAssertTrue(delta.added.isEmpty)
-        XCTAssertEqual(delta.updated.map(\.path), ["a/b"])
-        XCTAssertEqual(delta.updated.first?.messageCount, 2)
-        XCTAssertEqual(
-            String(data: delta.updated.first?.message?.payload ?? Data(), encoding: .utf8),
-            "2"
-        )
+
+        let leaf = delta.updated.first { $0.path == "a/b" }
+        XCTAssertEqual(leaf?.messageCount, 2)
+        XCTAssertEqual(String(data: leaf?.message?.payload ?? Data(), encoding: .utf8), "2")
+
+        // Ancestors are re-emitted so collapsed rows keep accurate counts.
+        let branch = delta.updated.first { $0.path == "a" }
+        XCTAssertEqual(branch?.leafMessageCount, 2)
     }
 
     func testEmptyPayloadRemovesLeafAndCascades() async {
@@ -109,6 +111,59 @@ final class TopicTreeEngineTests: XCTestCase {
         let stats = await engine.bufferStats()
         XCTAssertEqual(stats.changes, 1)
         XCTAssertEqual(stats.fillState, 1.0 / 200_000, accuracy: 1e-9)
+    }
+
+    func testCountsTrackAddsAndRemoves() async {
+        let engine = TopicTreeEngine()
+        await engine.ingest(topic: "a/b/c", payload: Data("1".utf8), qos: 0, retain: false)
+        await engine.ingest(topic: "a/b/d", payload: Data("2".utf8), qos: 0, retain: false)
+        _ = await engine.flush()
+
+        var counts = await engine.counts()
+        XCTAssertEqual(counts.topics, 4)
+        XCTAssertEqual(counts.messages, 2)
+
+        await engine.ingest(topic: "a/b/c", payload: Data(), qos: 0, retain: true)
+        _ = await engine.flush()
+
+        counts = await engine.counts()
+        XCTAssertEqual(counts.topics, 3)
+        XCTAssertEqual(counts.messages, 1)
+    }
+
+    /// A flood must stay bounded and must not emit a delta entry per message.
+    func testFloodStaysBounded() async {
+        let engine = TopicTreeEngine()
+        for i in 0..<5_000 {
+            await engine.ingest(
+                topic: "flood/\(i % 500)/value",
+                payload: Data("\(i)".utf8),
+                qos: 0,
+                retain: false
+            )
+        }
+        let delta = await engine.flush()
+
+        let counts = await engine.counts()
+        XCTAssertEqual(counts.topics, 1 + 500 + 500)
+        XCTAssertEqual(counts.messages, 5_000)
+        XCTAssertEqual(delta.added.count + delta.updated.count, counts.topics)
+    }
+
+    /// Parents must precede children so the mirror tree can attach every node.
+    func testAddedOrderingIsParentFirst() async {
+        let engine = TopicTreeEngine()
+        await engine.ingest(topic: "x/y/z", payload: Data("1".utf8), qos: 0, retain: false)
+        let delta = await engine.flush()
+
+        var seen = Set<String>()
+        for update in delta.added {
+            let parent = update.path.split(separator: "/").dropLast().joined(separator: "/")
+            if !parent.isEmpty {
+                XCTAssertTrue(seen.contains(parent), "\(update.path) arrived before \(parent)")
+            }
+            seen.insert(update.path)
+        }
     }
 }
 

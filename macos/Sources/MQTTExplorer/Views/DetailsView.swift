@@ -143,11 +143,14 @@ struct DetailsView: View {
             Picker("", selection: $model.settings.valueRendererDisplayMode) {
                 Text("Diff").tag(ValueRendererDisplayMode.diff)
                 Text("Raw").tag(ValueRendererDisplayMode.raw)
+                if visualizable(node) {
+                    Text("Value").tag(ValueRendererDisplayMode.value)
+                }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 120)
-            .help("Diff: Show difference between the current and the last message. Raw: Raw / formatted JSON.")
+            .frame(width: visualizable(node) ? 170 : 120)
+            .help("Diff: change against the previous message. Raw: the payload as sent. Value: chart the numbers.")
             .onChange(of: model.settings.valueRendererDisplayMode) {
                 model.saveConfig()
             }
@@ -188,10 +191,20 @@ struct DetailsView: View {
         return (node.message ?? StoredMessage(payload: Data(), qos: 0, retain: false, received: Date(), sequence: 0), "previous")
     }
 
+    private func visualizable(_ node: UITopicNode) -> Bool {
+        ValueShape.of(node.message?.payload ?? Data()).isVisualizable
+    }
+
     @ViewBuilder
     private func currentValue(_ node: UITopicNode) -> some View {
         if let message = node.message {
             switch model.settings.valueRendererDisplayMode {
+            case .value:
+                if visualizable(node) {
+                    ValueView(model: model, node: node, history: history)
+                } else {
+                    PayloadView(payload: message.payload)
+                }
             case .diff:
                 let compare = compareTarget(node)
                 CodeDiffView(
