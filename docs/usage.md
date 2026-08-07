@@ -1,106 +1,111 @@
 # Using MQTT Explorer for macOS
 
-## Installation
+## Install
 
-Open the DMG and drag MQTT Explorer to Applications.
+Open the DMG, drag MQTT Explorer to Applications.
 
-The app is ad-hoc codesigned, not notarized. The first time macOS blocks it
-("cannot be opened because the developer cannot be verified"), right-click
-the app in Finder, choose Open, and confirm. Alternatively:
+The app is signed ad-hoc rather than notarized, so the first launch gets
+blocked. Right-click it in Finder, choose Open, confirm. Or clear the flag
+yourself:
 
 ```sh
 xattr -dr com.apple.quarantine "/Applications/MQTT Explorer.app"
 ```
 
-## Connecting to a broker
+## Connecting
 
-On startup you see the connection setup. Add a connection:
+Add a connection on the start screen:
 
-- **Name**, **Host**, **Port** (defaults: 1883 plain, 8883 TLS)
-- **Encryption (tls)** toggles TLS, with optional certificate validation
-- **Protocol**: `mqtt://` (standard) or `ws://` (WebSocket, with basepath)
-- **Username / password** if the broker requires authentication
-- **Subscriptions**: the topics to subscribe to, each with its own QoS
-  (0/1/2). `#` subscribes to everything
-- **MQTT Version**: 5.0 (default) or 3.1.1, plus an optional client ID
+- **Host** and **port**. 1883 plain, 8883 with TLS.
+- **Encryption (tls)** turns on TLS, with optional certificate validation.
+- **Protocol**: `mqtt://` or `ws://` for WebSocket, which takes a basepath.
+- **Username and password** if the broker wants them. Passwords go to the
+  Keychain, not the config file.
+- **Subscriptions**: which topics to watch, each with its own QoS. `#` gets
+  everything.
+- **MQTT version**: 5.0 by default, 3.1.1 if you need it, plus an optional
+  client ID.
 
-Connections are stored as profiles, so you can keep several brokers
-(homelab, staging, production) and switch between them. While connected the
-app reconnects automatically when the connection drops.
+Connections are saved as profiles, so a homelab broker and a production one
+sit side by side. A dropped connection reconnects on its own.
 
-## The topic tree
+If the broker refuses a subscription you get told, rather than staring at
+an empty tree.
 
-The main window shows every topic as a tree, updated live as messages
-arrive.
+## The tree
 
-- Type in the filter field (or press Cmd-F) to narrow the tree by topic
-  name
-- The two buttons right of the filter expand or collapse the entire tree
-- Click a topic to open it in the sidebar
-- The status bar at the bottom shows the connection state, broker address
-  and the total number of topics and messages
+Topics appear as they arrive.
 
-Pause with `p` (or the toolbar button) to freeze the tree; changes keep
-recording into a buffer and are applied when you resume.
+- Type in the filter, or hit Cmd-F to jump to it.
+- The two buttons next to it expand or collapse everything.
+- Click a topic to open it on the right.
+- The bar along the bottom shows the connection, the broker you are
+  actually attached to, and how many topics and messages are in the tree.
 
-On a busy broker the tree stops expanding automatically past 5000 topics,
-and Expand All refuses rather than opening tens of thousands of rows. Use
-the filter to narrow down first. If messages ever arrive faster than they
-can be merged, the status bar reports how many were dropped instead of
-letting memory grow without bound.
+Press `p` to freeze the tree. Changes keep recording while paused and get
+applied when you resume.
 
-## The Details tab
+On a large broker the tree stops auto-expanding past 5000 topics, and
+Expand All will refuse rather than open tens of thousands of rows. Filter
+first. If messages ever come in faster than they can be merged, the status
+bar says how many were dropped.
 
-Selecting a topic shows, top to bottom:
+## Reading a topic
 
-- **Breadcrumb**: the full topic path, with copy and delete. Deleting
-  publishes an empty payload to the topic; on a topic with children it
-  clears the whole subtree
-- **Status bar**: time of the last message, QoS, and the retained state.
-  A retained message is marked in orange with a pin; the x next to it
-  clears the retained message
-- **Current value**: the latest payload, in one of three modes. Diff
-  highlights what changed against the previous message. Raw shows the full
-  payload as highlighted JSON, text or hex. Value appears whenever the
-  payload holds numbers and charts them: a single number gets a live trend
-  plot, a JSON object gets one row per numeric field with its own sparkline
-  plus a ring showing each field's share, and a numeric array gets a bar
-  chart. Copy and save buttons sit on the right and fall back to a hex dump
-  or the raw bytes for binary payloads
-- **History**: expand to see previous messages, newest first. Click a
-  message to select it as the diff reference and view its payload; numeric
-  messages get a sparkline and a chart button
-- **Statistics**: message count, subtopic count and the total across the
-  subtree
+Selecting a topic gives you, top to bottom:
 
-## The Publish tab
+**The path**, with copy and delete. Delete publishes an empty payload,
+which is how you clear a retained message. On a topic with children it
+clears the whole subtree.
 
-Publish a message to any topic: enter the topic, the payload, QoS and
-whether the message should be retained. Handy for testing actuators or
-clearing retained values by publishing an empty retained payload.
+**A status line**: when the last message landed, its QoS, and whether the
+value is retained. Retained shows in orange with a pin, and the x beside it
+clears the value on the broker.
+
+**The value**, in one of three modes:
+
+- *Diff* highlights what changed against the previous message.
+- *Raw* shows the payload as it arrived, as highlighted JSON, text or a hex
+  dump.
+- *Value* appears when the payload holds numbers, and charts them. One
+  number gets a trend plot. A JSON object gets a row per numeric field with
+  its own sparkline, plus a ring showing how the fields divide the total. A
+  numeric array gets a bar chart.
+
+Copy and Save sit on the right and handle binary payloads too.
+
+**History**, newest first. Click a message to diff against it and see its
+payload. Numeric messages get a sparkline and a button to chart them.
+
+**Counts** for the topic and its subtree.
+
+## Publishing
+
+The Publish tab takes a topic, a payload, a QoS and a retain flag. Useful
+for poking an actuator, or for clearing a retained value by publishing an
+empty one.
 
 ## Charts
 
-Numeric values can be plotted. In the Details tab, click the chart icon on
-a message, or use the value preview. Charts appear in the panel below the
-tree. Per chart you can:
+Click the chart button on any numeric value and it lands in the panel below
+the tree. Per chart you can pause it, set the value and time ranges, and
+change the interpolation, color and width. Hovering gives you the exact
+reading.
 
-- Pause/resume the plot
-- Set Y-axis (value) and X-axis (time window) ranges
-- Choose curve interpolation, line color and width
-- Hover for the exact time and value
+Charts are remembered per connection.
 
 ## Settings
 
-Open Settings from the toolbar slider or the app menu. You can switch
-between system, light and dark appearance, and configure formatting of
-timestamps.
+In the toolbar, or Cmd-,. Appearance follows the system by default and can
+be pinned to light or dark. Timestamp formatting lives here too.
 
-## Keyboard shortcuts
+## Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| Cmd-F | Focus the topic filter |
-| p | Pause / resume tree updates |
+| Key | Does |
+|-----|------|
+| Cmd-F | Jump to the filter |
+| p | Freeze or resume the tree |
+| Arrows | Move and expand in the tree |
+| Delete | Clear the selected topic and its subtree |
 | Cmd-, | Settings |
-| Cmd-Q | Quit (asks for confirmation while connected) |
+| Cmd-Q | Quit |

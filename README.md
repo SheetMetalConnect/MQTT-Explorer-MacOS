@@ -3,78 +3,64 @@
 <img width="1280" height="726" alt="image" src="https://github.com/user-attachments/assets/eb426076-2a3c-4b21-a9ed-f6ccc7423872" />
 
 A native macOS build of [MQTT Explorer](https://mqtt-explorer.com), the
-topic tree browser for MQTT brokers. Written in Swift and SwiftUI for Apple
-Silicon. No Electron, no browser engine: one small binary that starts
-instantly, uses a fraction of the memory, and behaves like any other Mac app
-in light and dark mode.
+topic tree browser for MQTT brokers. Swift and SwiftUI, Apple Silicon, no
+Electron. It opens instantly, stays out of the way, and looks like the rest
+of your Mac in light and dark.
 
 Based on the original [MQTT Explorer](https://mqtt-explorer.com) by Thomas
-Nordquist, which defined what this tool is and remains the reference for
-the concept. This repository carries the same license and attribution as
-the original project.
+Nordquist, which defined what this tool is. Same license, same attribution.
+See [what changed](docs/differences-from-upstream.md).
 
-## Features
+## What it does
 
-- Topic tree with live updates, message counts and a filter field (Cmd-F)
-- Expand / collapse the whole tree with one click
-- JSON, text and binary payload rendering with a diff view against the
-  previous message
-- Automatic visualization of numeric payloads: trend plots for single
-  values, per-field sparklines and share rings for JSON objects, bar
-  charts for numeric arrays
-- Retained message handling: clearly marked in the status bar, clearable
-  with one click
-- Per-topic history with sparklines, message compare and copy
-- Live charts for numeric values, with interpolation, color, axis range and
-  time window settings
-- Publish: raw payloads, JSON payloads, retained messages
-- Multiple broker profiles with MQTT 3.1.1 and MQTT 5.0 (default), TLS,
-  username/password and client certificates
-- Connection status bar with topic and message counts
+- Live topic tree with counts, a filter (Cmd-F) and one-click expand or
+  collapse
+- Payloads as JSON, text or hex, with a diff against the previous message
+- Numbers get charted on sight: trend plots, per-field sparklines with a
+  share ring for JSON objects, bar charts for arrays
+- Retained messages marked clearly and cleared with one click
+- Per-topic history you can diff and copy from
+- Chart panel with adjustable ranges, interpolation and colors, saved per
+  connection
+- Publish raw or JSON payloads, retained or not, at any QoS
+- Broker profiles with MQTT 5.0 and 3.1.1, TLS, WebSocket, passwords in the
+  Keychain
 
-## Build
-
-Requires macOS 15 or newer and Xcode 26 (or the matching command line
-tools).
-
-```sh
-cd macos
-./make-app.sh        # release build -> macos/build/MQTT Explorer.app
-```
-
-Run the tests (a broker on localhost:1883 is optional, the live tests skip
-themselves without one):
-
-```sh
-cd macos
-swift test
-```
+Busy brokers stay usable: the merge runs off the main thread, and the tree
+stops auto-expanding once it gets big rather than opening fifty thousand
+rows.
 
 ## Install
 
-Download the latest DMG from the
-[releases page](https://github.com/SheetMetalConnect/MQTT-Explorer-MacOS/releases),
-open it and drag MQTT Explorer to Applications. Or build it yourself:
+Grab the DMG from the
+[releases page](https://github.com/SheetMetalConnect/MQTT-Explorer-MacOS/releases)
+and drag it to Applications. First launch is blocked because the app is
+signed ad-hoc, not notarized: right-click, Open, confirm.
+
+## Build it yourself
+
+macOS 15 or newer, Xcode 26 or the matching command line tools.
 
 ```sh
 cd macos
+./make-app.sh        # -> macos/build/MQTT Explorer.app
 ./make-dmg.sh        # -> macos/build/MQTT Explorer-1.1.0.dmg
+swift test           # live broker tests skip without one on localhost:1883
 ```
 
-## Usage
+## Docs
 
-See [docs/usage.md](docs/usage.md) for connecting to brokers, navigating
-the topic tree, retained messages, history, charts and publishing.
+- [Usage](docs/usage.md), from connecting to charting
+- [What changed compared to the original](docs/differences-from-upstream.md)
 
 ## Feedback
 
-This app is in active use and development. Bug reports, feature requests
-and general feedback are welcome: open an
-[issue](https://github.com/SheetMetalConnect/MQTT-Explorer-MacOS/issues).
+I use this daily and keep working on it. Bugs and requests go in the
+[issue tracker](https://github.com/SheetMetalConnect/MQTT-Explorer-MacOS/issues).
 
 ## License
 
-Same as the original MQTT Explorer: CC BY-ND 4.0, see `LICENSE.md`.
+CC BY-ND 4.0, same as the original. See `LICENSE.md`.
 
 Original MQTT Explorer by Thomas Nordquist.
 macOS version by Luke van Enkhuizen.
