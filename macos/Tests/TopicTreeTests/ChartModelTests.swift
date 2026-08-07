@@ -201,3 +201,33 @@ final class MessagePreviewTests: XCTestCase {
         XCTAssertEqual(MessageRendering.preview(for: Data("temperatuur 21°C ✓".utf8)), "temperatuur 21°C ✓")
     }
 }
+
+@MainActor
+final class DataContractTests: XCTestCase {
+    func testUnderscoreSegmentsAreDataContracts() {
+        XCTAssertTrue(UITopicNode(path: "a/_historian", name: "_historian").isDataContract)
+        XCTAssertTrue(UITopicNode(path: "a/_process", name: "_process").isDataContract)
+        XCTAssertFalse(UITopicNode(path: "a/machine", name: "machine").isDataContract)
+        XCTAssertFalse(UITopicNode(path: "a/_", name: "_").isDataContract)
+    }
+}
+
+final class PayloadFlattenerTests: XCTestCase {
+    func testNestedObjectFlattensToDotPaths() {
+        let payload = Data(#"{"motor": {"rpm": 1200, "ok": true}, "name": "L1"}"#.utf8)
+        let fields = PayloadFlattener.fields(in: payload)
+        XCTAssertEqual(fields?.map(\.path), ["motor.ok", "motor.rpm", "name"])
+        XCTAssertEqual(fields?.first { $0.path == "motor.rpm" }?.value, "1200")
+        XCTAssertEqual(fields?.first { $0.path == "motor.ok" }?.kind, .bool)
+    }
+
+    func testArraysGetIndexedPaths() {
+        let fields = PayloadFlattener.fields(in: Data(#"{"t": [1, 2]}"#.utf8))
+        XCTAssertEqual(fields?.map(\.path), ["t[0]", "t[1]"])
+    }
+
+    func testNonJsonReturnsNil() {
+        XCTAssertNil(PayloadFlattener.fields(in: Data("hello".utf8)))
+        XCTAssertNil(PayloadFlattener.fields(in: Data("42".utf8)))
+    }
+}

@@ -20,12 +20,17 @@ final class UITopicNode {
     /// MQTT 3.1.1 clears the retain flag on live publishes after subscribe, so
     /// the badge tracks whether the broker ever sent this topic retained.
     var everRetained = false
+    @ObservationIgnored weak var parent: UITopicNode?
     /// Bumped on every message so rows can flash an update highlight.
     var updatePulse = 0
     /// Precomputed short preview for the tree row (max 400 chars, decoded).
     var preview: String = ""
 
     var id: String { path }
+
+    /// UNS data contracts (`_historian`, `_analytics`, `_process`) mark where a
+    /// namespace stops being structure and starts carrying payload.
+    var isDataContract: Bool { name.hasPrefix("_") && name.count > 1 }
 
     init(path: String, name: String) {
         self.path = path
@@ -216,16 +221,20 @@ final class UITreeModel {
             structureChanged = true
         }
 
-        for update in delta.added where insert(update) {
-            structureChanged = true
+        for update in delta.added {
+            guard let node = insert(update) else { continue }
+            if isVisible(node) { structureChanged = true }
         }
 
         for update in delta.updated {
             guard let node = index[update.path] else {
-                if insert(update) { structureChanged = true }
+                if let inserted = insert(update), isVisible(inserted) {
+                    structureChanged = true
+                }
                 continue
             }
-            if update.childCount != node.childCount {
+            // Gaining or losing children only matters if the row is on screen.
+            if update.childCount != node.childCount, isVisible(node) {
                 structureChanged = true
             }
             node.apply(update)
@@ -283,7 +292,9 @@ final class UITreeModel {
 
     private func rebuildRows() {
         var newRows: [TreeRow] = []
+        newRows.reserveCapacity(rows.count)
         appendRows(of: root, depth: 0, to: &newRows)
+        guard newRows != rows else { return }
         rows = newRows
     }
 
@@ -309,17 +320,18 @@ final class UITreeModel {
             children.sort { $0.childTopicCount > $1.childTopicCount }
         }
 
+        let filtering = !needle.isEmpty
         for child in children {
-            if !matchesFilter(child) {
-                // A node that doesn't match can still have matching
-                // descendants; descend but don't render the node itself.
+            if filtering, !matchesFilter(child) {
+                // A hidden node can still contain matches, so descend without
+                // rendering it. Collapsed subtrees are skipped when unfiltered.
                 if child.childCount > 0 {
                     appendRows(of: child, depth: depth, to: &rows)
                 }
                 continue
             }
             rows.append(TreeRow(path: child.path, depth: depth))
-            if child.expanded {
+            if child.expanded, child.childCount > 0 {
                 appendRows(of: child, depth: depth + 1, to: &rows)
             }
         }
@@ -339,15 +351,29 @@ final class UITreeModel {
         return update.childCount > 0 && update.childCount <= autoExpandLimit
     }
 
-    private func insert(_ update: NodeUpdate) -> Bool {
-        guard index[update.path] == nil, let parent = parentMirror(for: update.path) else { return false }
+    @discardableResult
+    private func insert(_ update: NodeUpdate) -> UITopicNode? {
+        guard index[update.path] == nil, let parent = parentMirror(for: update.path) else { return nil }
         let name = update.path.split(separator: "/", omittingEmptySubsequences: false).last.map(String.init) ?? update.path
         let node = UITopicNode(path: update.path, name: name)
         node.apply(update)
         node.expanded = shouldAutoExpand(update)
+        node.parent = parent
         parent.children[name] = node
         parent.childOrder.append(name)
         index[update.path] = node
+        return node
+    }
+
+    /// A row is on screen only when every ancestor is expanded. While a filter
+    /// is active the visible set is recomputed anyway, so treat it as visible.
+    private func isVisible(_ node: UITopicNode) -> Bool {
+        if !needle.isEmpty { return true }
+        var current = node.parent
+        while let ancestor = current {
+            if ancestor !== root, !ancestor.expanded { return false }
+            current = ancestor.parent
+        }
         return true
     }
 

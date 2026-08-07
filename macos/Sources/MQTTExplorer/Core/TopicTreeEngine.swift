@@ -81,7 +81,9 @@ actor TopicTreeEngine {
         var cachedChildTopicCount = 0
         var countsDirty = true
 
-        static let historyCapacity = 2000
+        /// Deep enough for diffs and charts, shallow enough that ten thousand
+        /// topics do not become gigabytes.
+        static let historyCapacity = 500
 
         init(name: String, parent: Node?) {
             self.name = name

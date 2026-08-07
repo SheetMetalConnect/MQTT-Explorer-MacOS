@@ -18,7 +18,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var topicOrder: TopicOrder = .none
     var highlightTopicUpdates: Bool = true
     var valueRendererDisplayMode: ValueRendererDisplayMode = .diff
-    var autoExpandLimit: Int = 0
+    var autoExpandLimit: Int = 3
     var selectTopicWithMouseOver: Bool = false
     var timeLocale: String = Locale.current.identifier
     var topicFilter: String = ""

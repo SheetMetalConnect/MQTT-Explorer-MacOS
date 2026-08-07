@@ -153,7 +153,9 @@ struct ConnectionSetupView: View {
                 TextField("Host", text: $draft.host, prompt: Text("broker.example.com"))
 
                 LabeledContent("Port") {
-                    TextField("1883", text: $portText)
+                    TextField("Port", text: $portText, prompt: Text("1883"))
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
                         .frame(width: 100)
                         .onChange(of: portText) { _, text in
                             if let value = Int(text), (1...65535).contains(value) {

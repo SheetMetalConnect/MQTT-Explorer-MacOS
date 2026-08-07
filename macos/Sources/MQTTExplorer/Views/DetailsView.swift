@@ -6,6 +6,7 @@ import AppKit
 struct DetailsView: View {
     @Bindable var model: AppModel
     @State private var history: [StoredMessage] = []
+    @State private var rawAsText = false
 
     /// Reloads on selection change and at most a few times a second while
     /// messages keep arriving.
@@ -143,13 +144,11 @@ struct DetailsView: View {
             Picker("", selection: $model.settings.valueRendererDisplayMode) {
                 Text("Diff").tag(ValueRendererDisplayMode.diff)
                 Text("Raw").tag(ValueRendererDisplayMode.raw)
-                if visualizable(node) {
-                    Text("Value").tag(ValueRendererDisplayMode.value)
-                }
+                Text("Value").tag(ValueRendererDisplayMode.value)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: visualizable(node) ? 170 : 120)
+            .frame(width: 170)
             .help("Diff: change against the previous message. Raw: the payload as sent. Value: chart the numbers.")
             .onChange(of: model.settings.valueRendererDisplayMode) {
                 model.saveConfig()
@@ -193,6 +192,18 @@ struct DetailsView: View {
         return (node.message ?? StoredMessage(payload: Data(), qos: 0, retain: false, received: Date(), sequence: 0), "previous")
     }
 
+    /// JSON in Raw mode defaults to the field table; the text toggle shows the
+    /// payload exactly as it arrived.
+    private var rawToggle: some View {
+        Picker("", selection: $rawAsText) {
+            Text("Fields").tag(false)
+            Text("Text").tag(true)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 130)
+    }
+
     /// Binary payloads copy and save as the hex dump the UI is showing.
     static func textRepresentation(of payload: Data) -> String {
         String(data: payload, encoding: .utf8) ?? MessageRendering.hexDump(payload)
@@ -223,7 +234,16 @@ struct DetailsView: View {
                     historyCount: history.count
                 )
             case .raw:
-                PayloadView(payload: message.payload)
+                if let fields = PayloadFlattener.fields(in: message.payload) {
+                    rawToggle
+                    if rawAsText {
+                        PayloadView(payload: message.payload)
+                    } else {
+                        PayloadTableView(fields: fields, model: model, topic: node.path)
+                    }
+                } else {
+                    PayloadView(payload: message.payload)
+                }
                 if let explicit = model.compareMessage, explicit != message {
                     Text("selected")
                         .font(.caption)

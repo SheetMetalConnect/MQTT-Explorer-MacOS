@@ -95,17 +95,17 @@ struct TopicTreeView: View {
 
     private var treeList: some View {
         ScrollViewReader { proxy in
-            List(selection: selection) {
-                rootRow
-                ForEach(model.tree.rows) { row in
-                    if let node = model.tree.node(at: row.path) {
-                        TopicRowView(model: model, node: node, depth: row.depth + 1)
-                            .tag(row.path)
-                            .id(row.path)
-                    }
+            List(model.tree.rows, id: \.path, selection: selection) { row in
+                if let node = model.tree.node(at: row.path) {
+                    TopicRowView(model: model, node: node, depth: row.depth + 1)
+                        .id(row.path)
                 }
             }
             .listStyle(.inset)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                rootRow
+                    .background(.bar)
+            }
             .onChange(of: model.tree.selectedPath) { _, path in
                 if let path {
                     withAnimation(.easeOut(duration: 0.1)) {
@@ -157,13 +157,22 @@ private struct TopicRowView: View {
     let depth: Int
 
     @State private var flashing = false
+    @State private var flashTask: Task<Void, Never>?
 
     var body: some View {
         HStack(spacing: 4) {
             expander
-            Text(node.name)
-                .bold()
-                .lineLimit(1)
+            if node.isDataContract {
+                Text(node.name)
+                    .bold()
+                    .lineLimit(1)
+                    .foregroundStyle(Color.accentColor)
+                    .help("UNS data contract")
+            } else {
+                Text(node.name)
+                    .bold()
+                    .lineLimit(1)
+            }
             if !node.expanded, node.childCount > 0 {
                 Text("(\(node.childTopicCount) topic(s), \(node.leafMessageCount) message(s))")
                     .foregroundStyle(.secondary)
@@ -199,12 +208,18 @@ private struct TopicRowView: View {
             }
         }
         .onChange(of: node.updatePulse) {
-            guard model.settings.highlightTopicUpdates else { return }
+            guard model.settings.highlightTopicUpdates, !flashing else { return }
             flashing = true
-            Task {
+            flashTask?.cancel()
+            flashTask = Task {
                 try? await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled else { return }
                 flashing = false
             }
+        }
+        .onDisappear {
+            flashTask?.cancel()
+            flashing = false
         }
     }
 
