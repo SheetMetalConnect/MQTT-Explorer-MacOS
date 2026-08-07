@@ -10,12 +10,14 @@ struct DetailsView: View {
     var body: some View {
         if let node = model.selectedNode {
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     breadcrumb(node)
-                    metadataBar(node)
+                    statusLine(node)
                     currentValueToolbar(node)
                     currentValue(node)
+                    Divider()
                     HistoryView(model: model, topic: node.path, history: history)
+                    Divider()
                     statistics(node)
                     Spacer(minLength: 0)
                 }
@@ -82,28 +84,53 @@ struct DetailsView: View {
         }
     }
 
-    // MARK: Metadata (date, retained, qos)
+    // MARK: Status line (date, qos, retained)
 
-    private func metadataBar(_ node: UITopicNode) -> some View {
-        HStack(spacing: 8) {
-            Text(DateFormatterFormatting.format(
-                node.lastUpdate,
-                locale: model.settings.timeLocale
-            ))
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            Spacer()
-            if let message = node.message {
-                if message.retain {
-                    Text("Retained")
+    /// Date and QoS as quiet captions; a retained message gets one prominent
+    /// line of its own, with the control to clear it.
+    private func statusLine(_ node: UITopicNode) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(DateFormatterFormatting.format(
+                    node.lastUpdate,
+                    locale: model.settings.timeLocale
+                ))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Spacer()
+                if let message = node.message {
+                    Text("QoS \(message.qos)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Text("QoS \(message.qos)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            }
+            if node.message?.retain == true {
+                retainedLine(node)
             }
         }
+    }
+
+    private func retainedLine(_ node: UITopicNode) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "pin.fill")
+            Text("Retained message")
+                .fontWeight(.semibold)
+            Spacer()
+            Button {
+                Task { await model.clearTopic(path: node.path, recursive: false) }
+            } label: {
+                Label("Clear", systemImage: "xmark")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+            .help("Publish an empty payload to remove the retained message")
+        }
+        .font(.callout)
+        .foregroundStyle(.orange)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
     }
 
     // MARK: Current value toolbar (Diff/Raw, copy, save, delete retained)
@@ -145,20 +172,6 @@ struct DetailsView: View {
             }
             .buttonStyle(.borderless)
             .help("Save value to file")
-
-            if let message = node.message, message.retain {
-                Button {
-                    Task { await model.clearTopic(path: node.path, recursive: false) }
-                } label: {
-                    HStack(spacing: 2) {
-                        Text("retained")
-                        Image(systemName: "xmark")
-                    }
-                }
-                .buttonStyle(.borderless)
-                .font(.caption)
-                .help("Delete retained topic")
-            }
         }
     }
 
@@ -216,12 +229,8 @@ struct DetailsView: View {
             Divider().frame(height: 32)
             stat("Total", value: node.leafMessageCount)
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 4)
         .frame(maxWidth: .infinity)
-        .background(
-            Color(nsColor: .underPageBackgroundColor),
-            in: RoundedRectangle(cornerRadius: 6)
-        )
     }
 
     private func stat(_ title: String, value: Int) -> some View {

@@ -41,12 +41,6 @@ struct HistoryView: View {
                 .frame(maxHeight: 230)
             }
         }
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color(nsColor: .underPageBackgroundColor),
-            in: RoundedRectangle(cornerRadius: 6)
-        )
     }
 
     private func historyRow(index: Int, message: StoredMessage) -> some View {
@@ -100,10 +94,13 @@ struct HistoryView: View {
             }
 
             if isExpanded {
-                PayloadView(payload: message.payload)
-                if plottable {
-                    sparkline(upTo: index)
+                VStack(alignment: .leading, spacing: 4) {
+                    PayloadView(payload: message.payload)
+                    if plottable {
+                        sparkline(upTo: index)
+                    }
                 }
+                .padding(.leading, 17)
             }
         }
         .padding(.vertical, 2)
@@ -129,10 +126,13 @@ struct HistoryView: View {
         }
         return Chart(samples, id: \.date) { sample in
             LineMark(x: .value("Time", sample.date), y: .value("Value", sample.value))
+                .foregroundStyle(Color.accentColor)
         }
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .frame(height: 40)
+        .padding(4)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
         .padding(.vertical, 2)
     }
 }
