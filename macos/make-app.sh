@@ -27,6 +27,11 @@ fi
 cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 printf 'APPL????' > "$APP_DIR/Contents/PkgInfo"
 
+cmp -s "$BIN" "$APP_DIR/Contents/MacOS/$APP_NAME" || {
+    echo "error: bundled binary is not the one just built" >&2
+    exit 1
+}
+
 echo "==> ad-hoc codesign"
 codesign --force --sign - "$APP_DIR"
 

@@ -10,9 +10,7 @@ APP_DIR="build/$APP_NAME.app"
 DMG="build/$APP_NAME-$VERSION.dmg"
 STAGING="build/dmg-staging"
 
-if [ ! -d "$APP_DIR" ]; then
-    ./make-app.sh
-fi
+./make-app.sh
 
 echo "==> staging $STAGING"
 rm -rf "$STAGING" "$DMG"

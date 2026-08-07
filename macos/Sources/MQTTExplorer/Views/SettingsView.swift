@@ -25,7 +25,7 @@ struct SettingsView: View {
             BrokerStatisticsView(model: model)
         }
         .formStyle(.grouped)
-        .frame(height: 380)
+        .frame(height: 420)
     }
 
     private var general: some View {
@@ -59,53 +59,34 @@ struct SettingsView: View {
             }
 
             Section("Payloads") {
-                Toggle(isOn: $model.settings.showValueTypes) {
-                    Text("Show value types")
-                }
-                Text("A marker in the tree for what each payload holds: {} object, [] array, # number, Aa text, hex binary")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Toggle("Show value types", isOn: $model.settings.showValueTypes)
+                    .help("Marks what each payload holds: {} object, [] array, # number, Aa text, hex binary")
 
-                Toggle(isOn: $model.settings.highlightDataContracts) {
-                    Text("Highlight data contracts")
-                }
-                Text("Tint topic segments starting with an underscore, the UNS convention for _historian, _analytics and similar")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Toggle("Highlight data contracts", isOn: $model.settings.highlightDataContracts)
+                    .help("Tints topic segments starting with an underscore, the UNS convention for _historian and similar")
             }
 
             Section("Display") {
-                Picker("Time Locale", selection: $model.settings.timeLocale) {
+                Picker("Time locale", selection: $model.settings.timeLocale) {
                     ForEach(Self.localeSamples, id: \.id) { entry in
                         Text("\(entry.id)  (\(entry.sample))").tag(entry.id)
                     }
                 }
 
-                Toggle(isOn: $model.settings.highlightTopicUpdates) {
-                    Text("Show Activity")
-                }
-                Text("Topics blink when a new message arrives")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Toggle("Blink on new messages", isOn: $model.settings.highlightTopicUpdates)
 
-                Toggle(isOn: $model.settings.selectTopicWithMouseOver) {
-                    Text("Quick Preview")
-                }
-                Text("Select topics on mouse over")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Toggle("Select topics on hover", isOn: $model.settings.selectTopicWithMouseOver)
 
-                Toggle(isOn: darkModeBinding) {
-                    Text("Dark Mode")
+                Picker("Appearance", selection: $model.settings.theme) {
+                    Text("Auto").tag(ThemeChoice.system)
+                    Text("Light").tag(ThemeChoice.light)
+                    Text("Dark").tag(ThemeChoice.dark)
                 }
-                Text("Enable dark theme")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .pickerStyle(.segmented)
             }
-
         }
         .formStyle(.grouped)
-        .frame(height: 380)
+        .frame(height: 420)
     }
 
     /// Only the locales anyone picks here, rather than every identifier on the
@@ -123,12 +104,6 @@ struct SettingsView: View {
         return ids.map { (id: $0, sample: DateFormatterFormatting.format(now, locale: $0)) }
     }()
 
-    private var darkModeBinding: Binding<Bool> {
-        Binding(
-            get: { model.settings.theme == .dark },
-            set: { model.settings.theme = $0 ? .dark : .light }
-        )
-    }
 }
 
 /// $SYS broker statistics. Only shown when a $SYS topic exists. Values that

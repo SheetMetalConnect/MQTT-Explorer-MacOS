@@ -50,7 +50,7 @@ struct DiagnosticsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(height: 380)
+        .frame(height: 420)
     }
 
     private func row(_ entry: AppLog.Entry) -> some View {
