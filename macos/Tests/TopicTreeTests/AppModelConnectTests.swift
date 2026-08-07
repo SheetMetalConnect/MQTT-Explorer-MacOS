@@ -5,6 +5,26 @@ import XCTest
 /// tests bypass.
 @MainActor
 final class AppModelConnectTests: XCTestCase {
+    private var savedConfig: Data?
+
+    /// AppModel persists to the real settings file, so the user's own
+    /// connections have to be put back afterwards.
+    override func setUp() async throws {
+        savedConfig = try? Data(contentsOf: Self.configURL)
+    }
+
+    override func tearDown() async throws {
+        if let savedConfig {
+            try? savedConfig.write(to: Self.configURL)
+        }
+    }
+
+    private static var configURL: URL {
+        FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("MQTT Explorer/settings.json")
+    }
+
     func testConnectReachesConnectedAndReceivesMessages() async throws {
         let model = AppModel()
 

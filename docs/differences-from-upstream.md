@@ -81,9 +81,10 @@ whether the same defect existed here, and fixing the ones that did.
 
 ## Not included
 
-- **Sparkplug B decoding.** The original decodes it. Deferred here.
-- **The AI assistant.** Deliberately left out.
-- **Windows and Linux.** This build is macOS only. Use the original.
+- Sparkplug B decoding. Deferred.
+- Last will messages. Not ported yet.
+- The AI assistant, left out on purpose.
+- Windows and Linux. Use the original.
 
 ## Licensing
 
