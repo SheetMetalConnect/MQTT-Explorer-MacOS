@@ -26,6 +26,7 @@ struct ActivityTableView: View {
 
     var body: some View {
         let rows = children
+        let now = Date()
         return VStack(alignment: .leading, spacing: 6) {
             header(count: rows.count)
             if rows.isEmpty {
@@ -37,7 +38,7 @@ struct ActivityTableView: View {
                 VStack(spacing: 0) {
                     ForEach(Array(rows.enumerated()), id: \.element.path) { index, child in
                         if index > 0 { Divider() }
-                        row(child)
+                        row(child, now: now)
                     }
                 }
                 .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
@@ -62,8 +63,8 @@ struct ActivityTableView: View {
         }
     }
 
-    private func row(_ child: UITopicNode) -> some View {
-        let fresh = Date().timeIntervalSince(child.lastUpdate) < 2
+    private func row(_ child: UITopicNode, now: Date) -> some View {
+        let fresh = now.timeIntervalSince(child.lastUpdate) < 2
         return HStack(spacing: 10) {
             Circle()
                 .fill(fresh ? Color.accentColor : Color.secondary.opacity(0.25))
@@ -82,7 +83,7 @@ struct ActivityTableView: View {
                 .truncationMode(.middle)
                 .frame(maxWidth: 160, alignment: .trailing)
 
-            Text(DateFormatterFormatting.format(child.lastUpdate, locale: model.settings.timeLocale))
+            Text(DateFormatterFormatting.timeOnly(child.lastUpdate, locale: model.settings.timeLocale))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .monospacedDigit()

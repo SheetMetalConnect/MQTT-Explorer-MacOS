@@ -52,6 +52,34 @@ final class LiveBrokerTests: XCTestCase {
         XCTAssertTrue(removed.contains(retainedTopic))
     }
 
+    /// The saved profiles default to MQTT 5.0, so that path needs its own
+    /// coverage: a v5 subscribe returns a different SUBACK type.
+    func testConnectsWithMqtt5() async throws {
+        let manager = MqttClientManager()
+        let inbox = MessageInbox(capacity: 1_000)
+        defer { Task { await manager.shutdown() } }
+
+        var profile = ConnectionProfile()
+        profile.host = "127.0.0.1"
+        profile.port = 1883
+        profile.mqttVersion = .v5_0
+        profile.clientId = "mqtt-explorer-v5-\(UUID().uuidString.prefix(8))"
+        profile.subscriptions = [SubscriptionConfig(topic: "#", qos: 0)]
+
+        let stream = await manager.connect(profile: profile, password: nil, inbox: inbox)
+        for await event in stream {
+            switch event {
+            case .connected:
+                return
+            case .error(let message):
+                throw XCTSkip("No broker on localhost:1883 (\(message))")
+            default:
+                continue
+            }
+        }
+        XCTFail("MQTT 5.0 connection never reported connected")
+    }
+
     private struct Timeout: Error, CustomStringConvertible {
         let description: String
     }

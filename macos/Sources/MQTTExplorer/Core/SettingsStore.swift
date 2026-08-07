@@ -18,10 +18,19 @@ struct AppSettings: Codable, Sendable, Equatable {
     var topicOrder: TopicOrder = .none
     var highlightTopicUpdates: Bool = true
     var valueRendererDisplayMode: ValueRendererDisplayMode = .diff
-    var autoExpandLimit: Int = 3
+    /// Auto-expand a node when it has at most this many children. 0 is off.
+    var autoExpandLimit: Int = 5
+    /// Never auto-expand deeper than this many levels, whatever the width.
+    var autoExpandDepth: Int = 3
     var selectTopicWithMouseOver: Bool = false
     var timeLocale: String = Locale.current.identifier
     var topicFilter: String = ""
+    /// Set once the user dismisses the "this tree is getting large" offer.
+    var suppressLargeTreeHint: Bool = false
+    /// Show what each payload holds ({}, #, Aa) next to the topic name.
+    var showValueTypes: Bool = true
+    /// Tint UNS data contracts (segments starting with an underscore).
+    var highlightDataContracts: Bool = true
 }
 
 /// Everything persisted lands in one JSON file (settings.json in

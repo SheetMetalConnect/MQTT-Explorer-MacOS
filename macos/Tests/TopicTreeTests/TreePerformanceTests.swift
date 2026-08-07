@@ -99,3 +99,31 @@ final class TreePerformanceTests: XCTestCase {
         )
     }
 }
+
+/// The date formatter runs per visible row per redraw. Building a
+/// DateFormatter each time made it the hottest frame in a sample.
+final class FormattingPerformanceTests: XCTestCase {
+    func testFormattingManyRowsIsCheap() {
+        let dates = (0..<5_000).map { Date().addingTimeInterval(Double($0)) }
+
+        let start = Date()
+        for date in dates {
+            _ = DateFormatterFormatting.timeOnly(date, locale: "nl")
+        }
+        let elapsed = Date().timeIntervalSince(start)
+
+        XCTAssertLessThan(elapsed, 0.5, "5k timestamps took \(elapsed)s")
+    }
+
+    func testFormatterCacheReturnsConsistentOutput() {
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = DateFormatterFormatting.format(date, locale: "nl")
+        let second = DateFormatterFormatting.format(date, locale: "nl")
+        XCTAssertEqual(first, second)
+        XCTAssertNotEqual(
+            DateFormatterFormatting.format(date, locale: "en_US"),
+            DateFormatterFormatting.format(date, locale: "nl"),
+            "locales must not share a cached formatter"
+        )
+    }
+}

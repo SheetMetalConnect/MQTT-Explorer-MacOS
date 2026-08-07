@@ -87,6 +87,7 @@ final class AppModel {
         didSet {
             tree.order = settings.topicOrder
             tree.autoExpandLimit = settings.autoExpandLimit
+            tree.autoExpandDepth = settings.autoExpandDepth
             tree.filter = settings.topicFilter
         }
     }
@@ -124,6 +125,7 @@ final class AppModel {
         settings = config.settings
         tree.order = settings.topicOrder
         tree.autoExpandLimit = settings.autoExpandLimit
+        tree.autoExpandDepth = settings.autoExpandDepth
         tree.filter = settings.topicFilter
     }
 
@@ -156,6 +158,10 @@ final class AppModel {
     /// a coarse tick rather than on every message.
     private(set) var historyTick = 0
     @ObservationIgnored private var lastHistoryTick = Date.distantPast
+    /// True while messages are still landing, so the status bar can show that
+    /// a quiet-looking tree is actually still filling.
+    private(set) var receiving = false
+    @ObservationIgnored private var idleTask: Task<Void, Never>?
 
     // MARK: Profile management
 
@@ -197,6 +203,48 @@ final class AppModel {
         )
     }
 
+    // MARK: Export / import
+
+    func exportSettings() {
+        let payload = PersistedConfig(
+            connections: profiles,
+            lastSelectedConnection: selectedProfileId,
+            settings: settings,
+            chartViewStates: chartViewStates
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(payload),
+              let text = String(data: data, encoding: .utf8) else {
+            showError("Could not encode the settings.")
+            return
+        }
+        FileDialogs.saveText(text, suggestedName: "mqtt-explorer-settings.json")
+        AppLog.shared.info("Exported \(profiles.count) profiles")
+    }
+
+    func importSettings() {
+        guard let file = FileDialogs.openFileData() else { return }
+        guard let imported = try? JSONDecoder().decode(PersistedConfig.self, from: file.data) else {
+            showError("\(file.name) is not a MQTT Explorer settings file.")
+            AppLog.shared.error("Import failed: \(file.name)")
+            return
+        }
+
+        var merged = profiles
+        var added = 0
+        for profile in imported.connections where !merged.contains(where: { $0.id == profile.id }) {
+            merged.append(profile)
+            added += 1
+        }
+        profiles = merged
+        settings = imported.settings
+        saveConfig()
+
+        showNotification("Imported \(added) connection\(added == 1 ? "" : "s"). Passwords need re-entering.")
+        AppLog.shared.info("Imported \(added) profiles from \(file.name)")
+    }
+
     // MARK: Chart persistence (per connection)
 
     private(set) var chartViewStates: [String: [ChartParameters]] = [:]
@@ -227,10 +275,6 @@ final class AppModel {
         messageCount = 0
         droppedCount = 0
         saveConfig()
-        // Fresh tree per connection.
-        Task {
-            await engine.reset()
-        }
 
         // Restore the chart panel for this connection.
         let config = SettingsStore.shared.load()
@@ -240,6 +284,10 @@ final class AppModel {
 
         connectionTask?.cancel()
         connectionTask = Task {
+            // The reset must complete before any message is ingested,
+            // otherwise it wipes counts that already landed.
+            await engine.reset()
+            _ = inbox.drain()
             let stream = await manager.connect(profile: profile, password: password, inbox: inbox)
             startFlushLoop()
             for await event in stream {
@@ -281,16 +329,21 @@ final class AppModel {
         switch event {
         case .connecting:
             if phase != .connected { phase = .connecting }
+            AppLog.shared.info("Connecting to \(connectedProfile?.host ?? "broker")")
         case .connected:
             phase = .connected
+            AppLog.shared.info("Connected")
         case .reconnecting:
             // Unexpected drop after a successful connect.
             showError("Disconnected from server")
             phase = .reconnecting
-        case .disconnected:
+            AppLog.shared.warning("Connection dropped, reconnecting")
+        case .disconnected(let reason):
             phase = .disconnected
+            AppLog.shared.info("Disconnected\(reason.map { ": \($0)" } ?? "")")
         case .error(let message):
             phase = .error(message)
+            AppLog.shared.error(message)
         }
     }
 
@@ -338,6 +391,13 @@ final class AppModel {
         if now.timeIntervalSince(lastHistoryTick) >= 0.4 {
             lastHistoryTick = now
             historyTick += 1
+        }
+        if !receiving { receiving = true }
+        idleTask?.cancel()
+        idleTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled else { return }
+            self?.receiving = false
         }
         return count
     }

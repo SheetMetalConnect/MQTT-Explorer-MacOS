@@ -25,8 +25,13 @@ See [what changed](docs/differences-from-upstream.md).
   against the previous message
 - Numbers get charted on sight: trend plots, per-field sparklines with a
   share ring for JSON objects, bar charts for arrays
+- Payload types marked in the tree (`{}` object, `#` number, `Aa` text,
+  `hex` binary), so ERP records and sensor values stop looking alike
 - UNS data contracts (`_historian`, `_analytics`, `_process`) picked out in
   the tree, so structure and payload are easy to tell apart
+- Live values table on any branch: what changed, when, and how often
+- Session log and JSON export or import of your connections, with passwords
+  kept in the Keychain
 - Retained messages marked clearly and cleared with one click
 - Per-topic history you can diff and copy from
 - Chart panel with adjustable ranges, interpolation and colors, saved per
@@ -61,7 +66,7 @@ macOS 15 or newer, Xcode 26 or the matching command line tools.
 ```sh
 cd macos
 ./make-app.sh        # -> macos/build/MQTT Explorer.app
-./make-dmg.sh        # -> macos/build/MQTT Explorer-1.3.0.dmg
+./make-dmg.sh        # -> macos/build/MQTT Explorer-1.0.0.dmg
 swift test           # live broker tests skip without one on localhost:1883
 ```
 

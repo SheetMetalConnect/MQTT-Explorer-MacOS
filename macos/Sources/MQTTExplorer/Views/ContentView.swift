@@ -154,6 +154,13 @@ struct ContentView: View {
             if model.phase.isActive, let profile = model.connectedProfile {
                 Text("\(profile.host):\(profile.port)")
             }
+            if model.receiving {
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(0.6)
+                    .frame(width: 12, height: 12)
+                    .help("Receiving messages")
+            }
             Spacer()
             if model.phase.isActive {
                 if model.droppedCount > 0 {

@@ -25,6 +25,8 @@ final class UITopicNode {
     var updatePulse = 0
     /// Precomputed short preview for the tree row (max 400 chars, decoded).
     var preview: String = ""
+    /// Precomputed alongside the preview, so rows never inspect payloads.
+    var valueType: MessageRendering.ValueType?
 
     var id: String { path }
 
@@ -53,6 +55,7 @@ final class UITopicNode {
         }
         updatePulse += 1
         preview = MessageRendering.preview(for: update.message?.payload)
+        valueType = MessageRendering.valueType(of: update.message?.payload)
     }
 }
 
@@ -121,6 +124,7 @@ final class UITreeModel {
 
     @ObservationIgnored private var needle = ""
     var autoExpandLimit = 0
+    var autoExpandDepth = 3
 
     init() {
         root.expanded = true
@@ -348,7 +352,9 @@ final class UITreeModel {
 
     private func shouldAutoExpand(_ update: NodeUpdate) -> Bool {
         guard autoExpandLimit > 0, index.count < Self.autoExpandTopicCeiling else { return false }
-        return update.childCount > 0 && update.childCount <= autoExpandLimit
+        guard update.childCount > 0, update.childCount <= autoExpandLimit else { return false }
+        let depth = update.path.reduce(1) { $1 == "/" ? $0 + 1 : $0 }
+        return depth <= autoExpandDepth
     }
 
     @discardableResult

@@ -104,10 +104,34 @@ change the interpolation and color. Hovering gives you the exact reading.
 
 Charts are remembered per connection.
 
+## Reading an unfamiliar namespace
+
+Two things in the tree are there for integration work, where the same broker
+carries ERP records, MES events and raw sensor values.
+
+Each topic shows what its payload holds: `{}` for a JSON object, `[]` for an
+array, `#` for a number, `Aa` for text, `hex` for binary. Business data and
+telemetry stop looking alike at a glance.
+
+Topic segments starting with an underscore are tinted, following the UNS
+convention where `_historian`, `_analytics` and similar mark where a
+namespace stops being structure and starts carrying payload.
+
+Both can be turned off under Settings, Payloads.
+
 ## Settings
 
-In the toolbar, or Cmd-,. Appearance follows the system by default and can
-be pinned to light or dark. Timestamp formatting lives here too.
+In the toolbar, or Cmd-,. Three tabs:
+
+**General** covers how much of the tree opens on its own (by branch width
+and by depth), payload markers, time locale and appearance.
+
+**Broker** shows the `$SYS` statistics when the broker publishes them.
+
+**Diagnostics** holds the session log and the export and import of your
+connections. The export is plain JSON you can keep in a repo or hand to a
+colleague; passwords stay in the Keychain and never enter the file. Import
+merges, so it will not overwrite connections you already have.
 
 ## Shortcuts
 

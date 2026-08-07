@@ -1,27 +1,77 @@
 import SwiftUI
 
-/// The Settings window (Cmd-,): tree behavior, display options and live
-/// broker statistics.
+/// The Settings window (Cmd-,): behavior on one tab, live broker numbers on
+/// another, so neither becomes a wall of controls.
 struct SettingsView: View {
     @Bindable var model: AppModel
 
     var body: some View {
+        TabView {
+            general
+                .tabItem { Label("General", systemImage: "gearshape") }
+            statistics
+                .tabItem { Label("Broker", systemImage: "chart.bar") }
+            DiagnosticsView(model: model)
+                .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
+        }
+        .frame(width: 460)
+        .onChange(of: model.settings) {
+            model.saveConfig()
+        }
+    }
+
+    private var statistics: some View {
+        Form {
+            BrokerStatisticsView(model: model)
+        }
+        .formStyle(.grouped)
+        .frame(height: 380)
+    }
+
+    private var general: some View {
         Form {
             Section("Tree") {
-                Picker("Auto Expand", selection: $model.settings.autoExpandLimit) {
-                    Text("Collapsed").tag(0)
-                    Text("Few, ≤ 2 topics").tag(2)
-                    Text("Some, ≤ 5 topics").tag(5)
-                    Text("Most, ≤ 15 topics").tag(15)
-                    Text("Most, ≤ 30 topics").tag(30)
-                    Text("All").tag(1_000_000)
+                Picker("Auto expand", selection: $model.settings.autoExpandLimit) {
+                    Text("Nothing").tag(0)
+                    Text("Narrow branches, up to 2 children").tag(2)
+                    Text("Up to 5 children").tag(5)
+                    Text("Up to 15 children").tag(15)
+                    Text("Up to 30 children").tag(30)
+                    Text("Everything").tag(1_000_000)
                 }
+                .help("Branches wider than this stay closed, so a busy namespace does not unfold on its own.")
+
+                Picker("Expand no deeper than", selection: $model.settings.autoExpandDepth) {
+                    Text("1 level").tag(1)
+                    Text("2 levels").tag(2)
+                    Text("3 levels").tag(3)
+                    Text("5 levels").tag(5)
+                    Text("Any depth").tag(64)
+                }
+                .disabled(model.settings.autoExpandLimit == 0)
+                .help("A depth cap keeps deep namespaces readable even when every branch is narrow.")
 
                 Picker("Topic Order", selection: $model.settings.topicOrder) {
                     ForEach(TopicOrder.allCases, id: \.self) { order in
                         Text(order.label).tag(order)
                     }
                 }
+            }
+
+            Section("Payloads") {
+                Toggle(isOn: $model.settings.showValueTypes) {
+                    Text("Show value types")
+                }
+                Text("A marker in the tree for what each payload holds: {} object, [] array, # number, Aa text, hex binary")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle(isOn: $model.settings.highlightDataContracts) {
+                    Text("Highlight data contracts")
+                }
+                Text("Tint topic segments starting with an underscore, the UNS convention for _historian, _analytics and similar")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Display") {
@@ -53,23 +103,24 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            BrokerStatisticsView(model: model)
         }
         .formStyle(.grouped)
-        .frame(width: 420)
-        .fixedSize(horizontal: false, vertical: true)
-        .onChange(of: model.settings) {
-            model.saveConfig()
-        }
+        .frame(height: 380)
     }
 
+    /// Only the locales anyone picks here, rather than every identifier on the
+    /// machine, each of which would need its own formatter built.
     private static let localeSamples: [(id: String, sample: String)] = {
         let now = Date()
-        return Locale.availableIdentifiers
-            .sorted { (Locale.current.localizedString(forIdentifier: $0) ?? $0) < (Locale.current.localizedString(forIdentifier: $1) ?? $1) }
-            .map { id in
-                (id: id, sample: DateFormatterFormatting.format(now, locale: id))
-            }
+        let common = [
+            "nl_NL", "nl_BE", "de_DE", "de_AT", "en_GB", "en_US",
+            "fr_FR", "es_ES", "it_IT", "pt_PT", "sv_SE", "da_DK",
+            "nb_NO", "fi_FI", "pl_PL", "cs_CZ", "ja_JP", "zh_Hans",
+        ]
+        var ids = common
+        let current = Locale.current.identifier
+        if !ids.contains(current) { ids.insert(current, at: 0) }
+        return ids.map { (id: $0, sample: DateFormatterFormatting.format(now, locale: $0)) }
     }()
 
     private var darkModeBinding: Binding<Bool> {

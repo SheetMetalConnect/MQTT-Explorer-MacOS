@@ -35,6 +35,53 @@ enum MessageRendering {
         return flat
     }
 
+    /// What a payload holds, judged cheaply from its first bytes. Used for the
+    /// type marker in tree rows, where integration work means telling a JSON
+    /// business record apart from a bare sensor reading at a glance.
+    enum ValueType: String {
+        case object = "{}"
+        case array = "[]"
+        case number = "#"
+        case boolean = "T/F"
+        case text = "Aa"
+        case binary = "hex"
+        case empty = "∅"
+
+        var help: String {
+            switch self {
+            case .object: "JSON object"
+            case .array: "JSON array"
+            case .number: "Number"
+            case .boolean: "Boolean"
+            case .text: "Text"
+            case .binary: "Binary"
+            case .empty: "Empty payload"
+            }
+        }
+    }
+
+    static func valueType(of payload: Data?) -> ValueType? {
+        guard let payload else { return nil }
+        guard !payload.isEmpty else { return .empty }
+        if isProbablyBinary(payload) { return .binary }
+
+        let head = payload.prefix(64).drop { $0 == 0x20 || $0 == 0x0A || $0 == 0x0D || $0 == 0x09 }
+        switch head.first {
+        case UInt8(ascii: "{"): return .object
+        case UInt8(ascii: "["): return .array
+        default: break
+        }
+
+        let text = String(decoding: payload.prefix(64), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if text == "true" || text == "false" { return .boolean }
+        if payload.count <= 32, Plottable.parseString(text) != nil, text != "on", text != "off" {
+            return .number
+        }
+        return .text
+    }
+
     /// Control bytes other than tab/newline/return mean this is not text.
     private static func isProbablyBinary(_ payload: Data) -> Bool {
         payload.prefix(512).contains { $0 < 0x09 || ($0 > 0x0D && $0 < 0x20) }

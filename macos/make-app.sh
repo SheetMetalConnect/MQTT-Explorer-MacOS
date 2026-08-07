@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 
 APP_NAME="MQTT Explorer"
 BUNDLE_ID="com.sheetmetalconnect.mqttexplorer"
-VERSION="1.3.0"
+VERSION="1.0.0"
 BUILD_DIR="build"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
 

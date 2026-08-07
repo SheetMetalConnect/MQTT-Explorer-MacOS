@@ -21,10 +21,25 @@ struct TopicTreeView: View {
         )
     }
 
+    /// Once a session is this big, scrolling an expanded tree stops being the
+    /// fastest way to find anything.
+    private static let largeTreeThreshold = 8_000
+
+    private var showsLargeTreeHint: Bool {
+        !model.settings.suppressLargeTreeHint
+            && model.settings.topicFilter.isEmpty
+            && model.topicCount >= Self.largeTreeThreshold
+            && model.tree.rows.count > 400
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
+            if showsLargeTreeHint {
+                largeTreeHint
+                Divider()
+            }
             treeList
         }
         .onReceive(NotificationCenter.default.publisher(for: .focusSearch)) { _ in
@@ -91,6 +106,43 @@ struct TopicTreeView: View {
             filterText = model.settings.topicFilter
             searchFocused = true
         }
+    }
+
+    /// Offered once the tree is large enough that scrolling it stops working.
+    /// Both buttons change the session rather than only advising.
+    private var largeTreeHint: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "info.circle")
+                .foregroundStyle(.secondary)
+            Text("\(model.topicCount) topics loaded. Collapsing makes this quicker to navigate.")
+                .font(.caption)
+                .lineLimit(2)
+
+            Spacer(minLength: 4)
+
+            Button("Collapse all") {
+                model.tree.collapseAll()
+            }
+            .controlSize(.small)
+
+            Button("Search instead") {
+                searchFocused = true
+            }
+            .controlSize(.small)
+            .help("Narrowing the subscription on the connection screen keeps this traffic off the wire entirely.")
+
+            Button {
+                model.settings.suppressLargeTreeHint = true
+                model.saveConfig()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.borderless)
+            .help("Do not offer this again")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.quaternary.opacity(0.4))
     }
 
     private var treeList: some View {
@@ -162,7 +214,7 @@ private struct TopicRowView: View {
     var body: some View {
         HStack(spacing: 4) {
             expander
-            if node.isDataContract {
+            if node.isDataContract, model.settings.highlightDataContracts {
                 Text(node.name)
                     .bold()
                     .lineLimit(1)
@@ -177,6 +229,13 @@ private struct TopicRowView: View {
                 Text("(\(node.childTopicCount) topic(s), \(node.leafMessageCount) message(s))")
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+            }
+            if let type = node.valueType, model.settings.showValueTypes {
+                Text(type.rawValue)
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 20)
+                    .help(type.help)
             }
             if node.message != nil, !node.preview.isEmpty {
                 Text("= " + node.preview)
