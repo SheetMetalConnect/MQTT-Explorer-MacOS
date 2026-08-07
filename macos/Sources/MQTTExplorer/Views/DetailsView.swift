@@ -84,53 +84,52 @@ struct DetailsView: View {
         }
     }
 
-    // MARK: Status line (date, qos, retained)
+    // MARK: Status bar (last message, QoS, retained)
 
-    /// Date and QoS as quiet captions; a retained message gets one prominent
-    /// line of its own, with the control to clear it.
+    /// One bar grouping the message facts: when the last message arrived
+    /// (for retained messages that is the moment it was retained), its QoS,
+    /// and the retained state with the control to clear it.
     private func statusLine(_ node: UITopicNode) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
+        HStack(spacing: 16) {
+            HStack(spacing: 6) {
+                Text("Last message")
+                    .foregroundStyle(.secondary)
                 Text(DateFormatterFormatting.format(
                     node.lastUpdate,
                     locale: model.settings.timeLocale
                 ))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                Spacer()
-                if let message = node.message {
-                    Text("QoS \(message.qos)")
-                        .font(.caption)
+                .monospacedDigit()
+            }
+            if let message = node.message {
+                HStack(spacing: 6) {
+                    Text("QoS")
                         .foregroundStyle(.secondary)
+                    Text("\(message.qos)")
+                        .monospacedDigit()
                 }
             }
-            if node.message?.retain == true {
-                retainedLine(node)
-            }
-        }
-    }
-
-    private func retainedLine(_ node: UITopicNode) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "pin.fill")
-            Text("Retained message")
-                .fontWeight(.semibold)
             Spacer()
-            Button {
-                Task { await model.clearTopic(path: node.path, recursive: false) }
-            } label: {
-                Label("Clear", systemImage: "xmark")
-                    .font(.caption)
+            if node.message?.retain == true {
+                HStack(spacing: 6) {
+                    Image(systemName: "pin.fill")
+                    Text("Retained")
+                        .fontWeight(.semibold)
+                    Button {
+                        Task { await model.clearTopic(path: node.path, recursive: false) }
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Publish an empty payload to remove the retained message")
+                }
+                .foregroundStyle(.orange)
             }
-            .buttonStyle(.borderless)
-            .help("Publish an empty payload to remove the retained message")
         }
         .font(.callout)
-        .foregroundStyle(.orange)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
     }
 
     // MARK: Current value toolbar (Diff/Raw, copy, save, delete retained)
