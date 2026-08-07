@@ -19,39 +19,42 @@ struct TreeDelta: Sendable {
     var droppedMessages: Int = 0
 }
 
-/// Ring buffer with a fixed capacity, oldest entries evicted first.
+/// Ring buffer with a fixed capacity, oldest entries evicted first. Storage
+/// grows on demand so an untouched buffer costs nothing.
 struct RingBuffer<Element> {
-    private var storage: [Element?]
+    private var storage: [Element] = []
     private var head = 0
-    private(set) var count = 0
+    private let capacity: Int
+
+    var count: Int { storage.count }
 
     init(capacity: Int) {
-        storage = Array(repeating: nil, count: Swift.max(1, capacity))
+        self.capacity = Swift.max(1, capacity)
     }
 
     mutating func add(_ element: Element) {
-        let index = (head + count) % storage.count
-        if count == storage.count {
-            // Full: overwrite oldest
-            storage[head] = element
-            head = (head + 1) % storage.count
+        if storage.count < capacity {
+            storage.append(element)
         } else {
-            storage[index] = element
-            count += 1
+            storage[head] = element
+            head = (head + 1) % capacity
         }
     }
 
     /// Newest first.
-    func newestFirst() -> [Element] {
+    func newestFirst(limit: Int? = nil) -> [Element] {
+        let wanted = Swift.min(limit ?? storage.count, storage.count)
         var result: [Element] = []
-        result.reserveCapacity(count)
-        for i in 0..<count {
-            let index = (head + count - 1 - i) % storage.count
-            if let element = storage[index] {
-                result.append(element)
-            }
+        result.reserveCapacity(wanted)
+        for i in 0..<wanted {
+            result.append(storage[(head + storage.count - 1 - i) % storage.count])
         }
         return result
+    }
+
+    mutating func removeAll() {
+        storage.removeAll(keepingCapacity: false)
+        head = 0
     }
 }
 
@@ -163,14 +166,13 @@ actor TopicTreeEngine {
     private var topicCount = 0
     private var messageTotal = 0
 
-    /// Called from the MQTT event loop (via a Task per message).
-    func ingest(topic: String, payload: Data, qos: Int, retain: Bool) {
+    func ingest(topic: String, payload: Data, qos: Int, retain: Bool, received: Date = Date()) {
         let truncated = payload.count > Self.maxPayload ? payload.prefix(Self.maxPayload) : payload
         let message = StoredMessage(
             payload: Data(truncated),
             qos: qos,
             retain: retain,
-            received: Date(),
+            received: received,
             sequence: sequence
         )
         sequence += 1
@@ -180,6 +182,20 @@ actor TopicTreeEngine {
             droppedMessages += drop
         }
         pending.append((topic, message))
+    }
+
+    /// Drain a batch from the inbox in wire order, in one actor hop.
+    func ingest(batch: [IncomingMessage], dropped: Int) {
+        droppedMessages += dropped
+        for message in batch {
+            ingest(
+                topic: message.topic,
+                payload: message.payload,
+                qos: message.qos,
+                retain: message.retain,
+                received: message.received
+            )
+        }
     }
 
     /// Merge everything ingested since the last flush into the tree.
@@ -204,6 +220,9 @@ actor TopicTreeEngine {
                 remove(node: node, removedPaths: &removedPaths)
             }
         }
+
+        // A topic deleted and re-created in the same batch is live again.
+        removedPaths = removedPaths.filter { find(path: $0) == nil }
 
         for node in touched.values {
             defer {
@@ -249,9 +268,9 @@ actor TopicTreeEngine {
         droppedMessages = 0
     }
 
-    func history(path: String) -> [StoredMessage] {
+    func history(path: String, limit: Int? = nil) -> [StoredMessage] {
         guard let node = find(path: path) else { return [] }
-        return node.history.newestFirst()
+        return node.history.newestFirst(limit: limit)
     }
 
     func lastMessage(path: String) -> StoredMessage? {

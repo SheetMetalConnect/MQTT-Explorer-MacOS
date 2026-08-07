@@ -7,6 +7,12 @@ struct DetailsView: View {
     @Bindable var model: AppModel
     @State private var history: [StoredMessage] = []
 
+    /// Reloads on selection change and at most a few times a second while
+    /// messages keep arriving.
+    private func historyKey(_ node: UITopicNode) -> String {
+        "\(node.path)#\(model.historyTick)"
+    }
+
     var body: some View {
         if let node = model.selectedNode {
             ScrollView {
@@ -29,12 +35,6 @@ struct DetailsView: View {
         } else {
             emptyState
         }
-    }
-
-    /// Reload the history whenever the selection changes or new messages
-    /// arrive for the selected topic.
-    private func historyKey(_ node: UITopicNode) -> String {
-        "\(node.path)#\(node.messageCount)"
     }
 
     private var emptyState: some View {
@@ -109,7 +109,7 @@ struct DetailsView: View {
                 }
             }
             Spacer()
-            if node.message?.retain == true {
+            if node.everRetained {
                 HStack(spacing: 6) {
                     Image(systemName: "pin.fill")
                     Text("Retained")
@@ -156,9 +156,8 @@ struct DetailsView: View {
             }
 
             Button {
-                if let message = node.message, let text = String(data: message.payload, encoding: .utf8) {
-                    Clipboard.copy(text)
-                }
+                guard let payload = node.message?.payload else { return }
+                Clipboard.copy(Self.textRepresentation(of: payload))
             } label: {
                 Image(systemName: "doc.on.doc")
             }
@@ -166,8 +165,11 @@ struct DetailsView: View {
             .help("Copy value")
 
             Button {
-                if let message = node.message, let text = String(data: message.payload, encoding: .utf8) {
-                    FileDialogs.saveText(text, suggestedName: node.name + ".txt")
+                guard let payload = node.message?.payload else { return }
+                if String(data: payload, encoding: .utf8) != nil {
+                    FileDialogs.saveText(Self.textRepresentation(of: payload), suggestedName: node.name + ".txt")
+                } else {
+                    FileDialogs.saveData(payload, suggestedName: node.name + ".bin")
                 }
             } label: {
                 Image(systemName: "square.and.arrow.down")
@@ -189,6 +191,11 @@ struct DetailsView: View {
             return (history[1], "previous")
         }
         return (node.message ?? StoredMessage(payload: Data(), qos: 0, retain: false, received: Date(), sequence: 0), "previous")
+    }
+
+    /// Binary payloads copy and save as the hex dump the UI is showing.
+    static func textRepresentation(of payload: Data) -> String {
+        String(data: payload, encoding: .utf8) ?? MessageRendering.hexDump(payload)
     }
 
     private func visualizable(_ node: UITopicNode) -> Bool {

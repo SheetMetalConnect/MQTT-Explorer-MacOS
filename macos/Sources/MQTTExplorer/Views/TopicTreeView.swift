@@ -7,6 +7,8 @@ import SwiftUI
 struct TopicTreeView: View {
     @Bindable var model: AppModel
     @FocusState private var searchFocused: Bool
+    @State private var filterText = ""
+    @State private var filterTask: Task<Void, Never>?
 
     /// Route List selection changes through selectTopic so the publish topic
     /// follows the selection and the compare message resets.
@@ -37,12 +39,20 @@ struct TopicTreeView: View {
                 Image(systemName: "magnifyingglass")
                     .imageScale(.small)
                     .foregroundStyle(.secondary)
-                TextField("Filter topics", text: $model.settings.topicFilter)
+                TextField("Filter topics", text: $filterText)
                     .textFieldStyle(.plain)
                     .focused($searchFocused)
-                if !model.settings.topicFilter.isEmpty {
+                    .onChange(of: filterText) { _, text in
+                        filterTask?.cancel()
+                        filterTask = Task {
+                            try? await Task.sleep(for: .milliseconds(200))
+                            guard !Task.isCancelled else { return }
+                            model.settings.topicFilter = text
+                        }
+                    }
+                if !filterText.isEmpty {
                     Button {
-                        model.settings.topicFilter = ""
+                        filterText = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
@@ -77,7 +87,10 @@ struct TopicTreeView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .onAppear { searchFocused = true }
+        .onAppear {
+            filterText = model.settings.topicFilter
+            searchFocused = true
+        }
     }
 
     private var treeList: some View {
@@ -129,7 +142,7 @@ struct TopicTreeView: View {
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
                 .frame(width: 12)
-            Text(model.selectedProfile?.host ?? "")
+            Text(model.connectedProfile?.host ?? "")
                 .bold()
                 .lineLimit(1)
         }

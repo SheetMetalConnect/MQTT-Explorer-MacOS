@@ -39,6 +39,14 @@ enum FileDialogs {
         try? text.write(to: url, atomically: true, encoding: .utf8)
     }
 
+    static func saveData(_ data: Data, suggestedName: String) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = suggestedName
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        try? data.write(to: url)
+    }
+
     static func openFileData() -> (name: String, data: Data)? {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true

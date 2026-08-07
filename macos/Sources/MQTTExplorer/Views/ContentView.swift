@@ -152,7 +152,7 @@ struct ContentView: View {
                 .fill(model.phase.isActive ? healthColor : Color.gray.opacity(0.5))
                 .frame(width: 8, height: 8)
             Text(model.phase.label)
-            if model.phase.isActive, let profile = model.selectedProfile {
+            if model.phase.isActive, let profile = model.connectedProfile {
                 Text("\(profile.host):\(profile.port)")
             }
             Spacer()

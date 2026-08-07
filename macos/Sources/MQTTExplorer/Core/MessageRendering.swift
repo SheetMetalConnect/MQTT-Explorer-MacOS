@@ -21,23 +21,23 @@ enum MessageRendering {
         return .text
     }
 
-    /// Short decoded preview for tree rows (400 char limit).
+    /// Short decoded preview for tree rows (400 char limit). Only the leading
+    /// bytes are decoded: the result is flattened to one line anyway.
     static func preview(for payload: Data?) -> String {
-        guard let payload, !payload.isEmpty else { return "" }
-        let text: String
-        switch kind(of: payload) {
-        case .json:
-            text = prettyJSON(payload) ?? String(data: payload, encoding: .utf8) ?? ""
-        case .text:
-            text = String(data: payload, encoding: .utf8) ?? ""
-        case .binary:
-            return "HEX \(payload.count) bytes"
-        }
+        guard let payload else { return "" }
+        guard !payload.isEmpty else { return "<empty>" }
+        guard !isProbablyBinary(payload) else { return "HEX \(payload.count) bytes" }
+        let text = String(decoding: payload.prefix(1_200), as: UTF8.self)
         let flat = text.replacingOccurrences(of: "\n", with: " ")
-        if flat.count > 400 {
+        if flat.count > 400 || payload.count > 1_200 {
             return String(flat.prefix(400)) + "…"
         }
         return flat
+    }
+
+    /// Control bytes other than tab/newline/return mean this is not text.
+    private static func isProbablyBinary(_ payload: Data) -> Bool {
+        payload.prefix(512).contains { $0 < 0x09 || ($0 > 0x0D && $0 < 0x20) }
     }
 
     static func prettyJSON(_ payload: Data) -> String? {

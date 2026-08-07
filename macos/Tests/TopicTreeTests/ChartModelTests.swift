@@ -178,3 +178,26 @@ final class ValueShapeTests: XCTestCase {
         XCTAssertFalse(ValueShape.of(Data(#"["a", "b"]"#.utf8)).isVisualizable)
     }
 }
+
+final class MessagePreviewTests: XCTestCase {
+    func testEmptyPayloadIsMarked() {
+        XCTAssertEqual(MessageRendering.preview(for: Data()), "<empty>")
+        XCTAssertEqual(MessageRendering.preview(for: nil), "")
+    }
+
+    func testBinaryPayloadReportsSize() {
+        let binary = Data([0x00, 0x01, 0x02, 0xFF])
+        XCTAssertEqual(MessageRendering.preview(for: binary), "HEX 4 bytes")
+    }
+
+    func testLongPayloadIsTruncatedNotDecodedWhole() {
+        let long = Data(String(repeating: "a", count: 20_000).utf8)
+        let preview = MessageRendering.preview(for: long)
+        XCTAssertTrue(preview.hasSuffix("…"))
+        XCTAssertEqual(preview.count, 401)
+    }
+
+    func testUnicodePayloadSurvives() {
+        XCTAssertEqual(MessageRendering.preview(for: Data("temperatuur 21°C ✓".utf8)), "temperatuur 21°C ✓")
+    }
+}

@@ -32,7 +32,7 @@ struct HistoryView: View {
 
             if open {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 2) {
+                    LazyVStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(history.enumerated()), id: \.element.sequence) { index, message in
                             historyRow(index: index, message: message)
                         }
@@ -61,9 +61,7 @@ struct HistoryView: View {
                     .foregroundStyle(.tertiary)
                 Spacer(minLength: 4)
                 Button {
-                    if let text = String(data: message.payload, encoding: .utf8) {
-                        Clipboard.copy(text)
-                    }
+                    Clipboard.copy(DetailsView.textRepresentation(of: message.payload))
                 } label: {
                     Image(systemName: "doc.on.doc")
                         .font(.system(size: 10))

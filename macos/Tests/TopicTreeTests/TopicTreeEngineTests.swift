@@ -150,6 +150,44 @@ final class TopicTreeEngineTests: XCTestCase {
         XCTAssertEqual(delta.added.count + delta.updated.count, counts.topics)
     }
 
+    /// A delete followed by a new message in the same window must leave the
+    /// topic visible, not stranded.
+    func testDeleteAndRecreateInOneFlush() async {
+        let engine = TopicTreeEngine()
+        await engine.ingest(topic: "a/b", payload: Data("1".utf8), qos: 0, retain: false)
+        _ = await engine.flush()
+
+        await engine.ingest(topic: "a/b", payload: Data(), qos: 0, retain: true)
+        await engine.ingest(topic: "a/b", payload: Data("2".utf8), qos: 0, retain: false)
+        let delta = await engine.flush()
+
+        XCTAssertFalse(delta.removed.contains("a/b"))
+        let live = (delta.added + delta.updated).first { $0.path == "a/b" }
+        XCTAssertEqual(String(data: live?.message?.payload ?? Data(), encoding: .utf8), "2")
+    }
+
+    /// Batched ingest must preserve wire order and the wire timestamps.
+    func testBatchIngestPreservesOrder() async {
+        let engine = TopicTreeEngine()
+        let base = Date()
+        let batch = (0..<5).map { index in
+            IncomingMessage(
+                topic: "a/b",
+                payload: Data("\(index)".utf8),
+                qos: 0,
+                retain: false,
+                received: base.addingTimeInterval(Double(index))
+            )
+        }
+        await engine.ingest(batch: batch, dropped: 3)
+        let delta = await engine.flush()
+
+        XCTAssertEqual(delta.droppedMessages, 3)
+        let history = await engine.history(path: "a/b")
+        XCTAssertEqual(history.map { String(data: $0.payload, encoding: .utf8) }, ["4", "3", "2", "1", "0"])
+        XCTAssertEqual(history.first?.received, base.addingTimeInterval(4))
+    }
+
     /// Parents must precede children so the mirror tree can attach every node.
     func testAddedOrderingIsParentFirst() async {
         let engine = TopicTreeEngine()

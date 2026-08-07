@@ -6,6 +6,7 @@ import XCTest
 final class LiveBrokerTests: XCTestCase {
     private let manager = MqttClientManager()
     private let engine = TopicTreeEngine()
+    private let inbox = MessageInbox(capacity: TopicTreeEngine.maxPending)
 
     override func tearDown() async throws {
         await manager.shutdown()
@@ -19,7 +20,7 @@ final class LiveBrokerTests: XCTestCase {
         profile.clientId = "mqtt-explorer-smoke-\(UUID().uuidString.prefix(8))"
         profile.subscriptions = [SubscriptionConfig(topic: "#", qos: 0)]
 
-        let stream = await manager.connect(profile: profile, password: nil, engine: engine)
+        let stream = await manager.connect(profile: profile, password: nil, inbox: inbox)
 
         var connected = false
         for await event in stream {
@@ -58,6 +59,8 @@ final class LiveBrokerTests: XCTestCase {
     private func waitForMessage(at path: String, timeout: TimeInterval = 10) async throws -> StoredMessage {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
+            let batch = inbox.drain()
+            await engine.ingest(batch: batch.messages, dropped: batch.dropped)
             let delta = await engine.flush()
             for update in delta.added + delta.updated where update.path == path {
                 if let message = update.message, !message.payload.isEmpty {
@@ -72,6 +75,8 @@ final class LiveBrokerTests: XCTestCase {
     private func waitForRemoval(of path: String, timeout: TimeInterval = 10) async throws -> [String] {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
+            let batch = inbox.drain()
+            await engine.ingest(batch: batch.messages, dropped: batch.dropped)
             let delta = await engine.flush()
             if delta.removed.contains(path) {
                 return delta.removed

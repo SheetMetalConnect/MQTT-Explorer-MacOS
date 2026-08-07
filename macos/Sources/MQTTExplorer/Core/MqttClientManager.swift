@@ -14,8 +14,8 @@ enum MqttClientEvent: Sendable {
     case error(String)
 }
 
-/// Wraps MQTTNIO. Incoming messages are ingested straight into the
-/// TopicTreeEngine on the NIO event loop; only lifecycle events go to the UI.
+/// Wraps MQTTNIO. Incoming messages land in a MessageInbox on the NIO event
+/// loop, preserving wire order; only lifecycle events go to the UI.
 actor MqttClientManager {
     private var client: MQTTClient?
     private let group: MultiThreadedEventLoopGroup
@@ -30,7 +30,7 @@ actor MqttClientManager {
     func connect(
         profile: ConnectionProfile,
         password: String?,
-        engine: TopicTreeEngine
+        inbox: MessageInbox
     ) -> AsyncStream<MqttClientEvent> {
         userInitiatedDisconnect = false
         let (stream, continuation) = AsyncStream<MqttClientEvent>.makeStream()
@@ -38,7 +38,7 @@ actor MqttClientManager {
 
         reconnectTask?.cancel()
         reconnectTask = Task { [weak self] in
-            await self?.runConnectionLoop(profile: profile, password: password, engine: engine, continuation: continuation)
+            await self?.runConnectionLoop(profile: profile, password: password, inbox: inbox, continuation: continuation)
         }
         return stream
     }
@@ -68,13 +68,13 @@ actor MqttClientManager {
     private func runConnectionLoop(
         profile: ConnectionProfile,
         password: String?,
-        engine: TopicTreeEngine,
+        inbox: MessageInbox,
         continuation: AsyncStream<MqttClientEvent>.Continuation
     ) async {
         var firstAttempt = true
         while !Task.isCancelled {
             do {
-                try await connectOnce(profile: profile, password: password, engine: engine, continuation: continuation)
+                try await connectOnce(profile: profile, password: password, inbox: inbox, continuation: continuation)
                 continuation.yield(.connected)
 
                 // Wait until the connection drops again.
@@ -107,7 +107,7 @@ actor MqttClientManager {
     private func connectOnce(
         profile: ConnectionProfile,
         password: String?,
-        engine: TopicTreeEngine,
+        inbox: MessageInbox,
         continuation: AsyncStream<MqttClientEvent>.Continuation
     ) async throws {
         await tearDownClient()
@@ -143,20 +143,20 @@ actor MqttClientManager {
         self.client = client
 
         // Messages go straight to the tree engine, off the main thread.
-        client.addPublishListener(named: "explorer") { [weak self] result in
-            guard self != nil else { return }
+        client.addPublishListener(named: "explorer") { result in
             switch result {
             case .success(let publish):
                 var buffer = publish.payload
                 let data = buffer.readData(length: buffer.readableBytes) ?? Data()
-                Task {
-                    await engine.ingest(
+                inbox.append(
+                    IncomingMessage(
                         topic: publish.topicName,
                         payload: data,
                         qos: Int(publish.qos.rawValue),
-                        retain: publish.retain
+                        retain: publish.retain,
+                        received: Date()
                     )
-                }
+                )
             case .failure:
                 break
             }
@@ -177,7 +177,13 @@ actor MqttClientManager {
         let infos = subscriptions.map {
             MQTTSubscribeInfo(topicFilter: $0.topic, qos: MQTTQoS(rawValue: UInt8($0.qos)) ?? .atMostOnce)
         }
-        _ = try await client.subscribe(to: infos)
+        let suback = try await client.subscribe(to: infos)
+        let rejected = zip(infos, suback.returnCodes)
+            .filter { if case .failure = $0.1 { return true } else { return false } }
+            .map(\.0.topicFilter)
+        if !rejected.isEmpty {
+            continuation.yield(.error("Broker rejected subscription: \(rejected.joined(separator: ", "))"))
+        }
     }
 
     private var closeSignal: AsyncStream<Void>?

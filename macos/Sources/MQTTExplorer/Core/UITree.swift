@@ -17,6 +17,9 @@ final class UITopicNode {
     var leafMessageCount = 0
     var childTopicCount = 0
     var expanded = false
+    /// MQTT 3.1.1 clears the retain flag on live publishes after subscribe, so
+    /// the badge tracks whether the broker ever sent this topic retained.
+    var everRetained = false
     /// Bumped on every message so rows can flash an update highlight.
     var updatePulse = 0
     /// Precomputed short preview for the tree row (max 400 chars, decoded).
@@ -38,6 +41,11 @@ final class UITopicNode {
         childTopicCount = update.childTopicCount
         guard ownMessageChanged else { return }
         message = update.message
+        if update.message?.retain == true {
+            everRetained = true
+        } else if update.message?.payload.isEmpty == true {
+            everRetained = false
+        }
         updatePulse += 1
         preview = MessageRendering.preview(for: update.message?.payload)
     }
@@ -92,16 +100,21 @@ final class UITreeModel {
 
     var filter: String = "" {
         didSet {
+            guard oldValue != filter else { return }
+            needle = filter.trimmingCharacters(in: .whitespaces)
             structureVersion += 1
             rebuildRows()
         }
     }
     var order: TopicOrder = .none {
         didSet {
+            guard oldValue != order else { return }
             structureVersion += 1
             rebuildRows()
         }
     }
+
+    @ObservationIgnored private var needle = ""
     var autoExpandLimit = 0
 
     init() {
@@ -203,21 +216,15 @@ final class UITreeModel {
             structureChanged = true
         }
 
-        for update in delta.added {
-            guard index[update.path] == nil else { continue }
-            guard let parent = parentMirror(for: update.path) else { continue }
-            let name = update.path.split(separator: "/", omittingEmptySubsequences: false).last.map(String.init) ?? update.path
-            let node = UITopicNode(path: update.path, name: name)
-            node.apply(update)
-            node.expanded = shouldAutoExpand(update)
-            parent.children[name] = node
-            parent.childOrder.append(name)
-            index[update.path] = node
+        for update in delta.added where insert(update) {
             structureChanged = true
         }
 
         for update in delta.updated {
-            guard let node = index[update.path] else { continue }
+            guard let node = index[update.path] else {
+                if insert(update) { structureChanged = true }
+                continue
+            }
             if update.childCount != node.childCount {
                 structureChanged = true
             }
@@ -319,9 +326,8 @@ final class UITreeModel {
     }
 
     private func matchesFilter(_ node: UITopicNode) -> Bool {
-        let needle = filter.trimmingCharacters(in: .whitespaces)
         if needle.isEmpty { return true }
-        return node.path.localizedCaseInsensitiveContains(needle)
+        return node.path.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) != nil
     }
 
     /// Auto-expansion stops once the tree is large: opening thousands of rows
@@ -331,6 +337,18 @@ final class UITreeModel {
     private func shouldAutoExpand(_ update: NodeUpdate) -> Bool {
         guard autoExpandLimit > 0, index.count < Self.autoExpandTopicCeiling else { return false }
         return update.childCount > 0 && update.childCount <= autoExpandLimit
+    }
+
+    private func insert(_ update: NodeUpdate) -> Bool {
+        guard index[update.path] == nil, let parent = parentMirror(for: update.path) else { return false }
+        let name = update.path.split(separator: "/", omittingEmptySubsequences: false).last.map(String.init) ?? update.path
+        let node = UITopicNode(path: update.path, name: name)
+        node.apply(update)
+        node.expanded = shouldAutoExpand(update)
+        parent.children[name] = node
+        parent.childOrder.append(name)
+        index[update.path] = node
+        return true
     }
 
     private func unindexDescendants(of node: UITopicNode) {

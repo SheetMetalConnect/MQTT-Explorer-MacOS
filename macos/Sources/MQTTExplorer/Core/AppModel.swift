@@ -107,6 +107,7 @@ final class AppModel {
     let charts = ChartStore()
     let engine = TopicTreeEngine()
     let manager = MqttClientManager()
+    let inbox = MessageInbox(capacity: TopicTreeEngine.maxPending)
     let publish = PublishState()
 
     private var connectionTask: Task<Void, Never>?
@@ -130,6 +131,12 @@ final class AppModel {
         profiles.first { $0.id == selectedProfileId }
     }
 
+    /// The profile the client is actually attached to, which is not
+    /// necessarily the one highlighted in the list.
+    var connectedProfile: ConnectionProfile? {
+        profiles.first { $0.id == connectedProfileId }
+    }
+
     var selectedNode: UITopicNode? {
         tree.selectedPath.flatMap { tree.node(at: $0) }
     }
@@ -145,6 +152,10 @@ final class AppModel {
     var topicCount = 0
     var messageCount = 0
     var droppedCount = 0
+    /// Bumped at most every 400 ms so the details pane reloads its history on
+    /// a coarse tick rather than on every message.
+    private(set) var historyTick = 0
+    @ObservationIgnored private var lastHistoryTick = Date.distantPast
 
     // MARK: Profile management
 
@@ -229,7 +240,7 @@ final class AppModel {
 
         connectionTask?.cancel()
         connectionTask = Task {
-            let stream = await manager.connect(profile: profile, password: password, engine: engine)
+            let stream = await manager.connect(profile: profile, password: password, inbox: inbox)
             startFlushLoop()
             for await event in stream {
                 handle(event)
@@ -290,32 +301,52 @@ final class AppModel {
         flushTask = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(250))
-                guard phase.isActive, !paused else { continue }
-                let delta = await engine.flush()
-                guard !delta.added.isEmpty || !delta.updated.isEmpty || !delta.removed.isEmpty else { continue }
-                tree.apply(delta)
-                for update in delta.added {
-                    charts.ingest(update: update)
+                guard phase.isActive else { continue }
+                let batch = inbox.drain()
+                if !batch.messages.isEmpty || batch.dropped > 0 {
+                    await engine.ingest(batch: batch.messages, dropped: batch.dropped)
                 }
-                for update in delta.updated {
-                    charts.ingest(update: update)
-                }
-                // Drop charts whose topic disappeared (CHARTS_REMOVE).
-                for path in delta.removed where charts.hasChart(for: path) {
-                    charts.removeCharts(for: path)
-                    chartsChanged()
-                }
-                let counts = await engine.counts()
-                topicCount = counts.topics
-                messageCount = counts.messages
-                droppedCount += delta.droppedMessages
+                guard !paused else { continue }
+                _ = await drainEngine()
             }
         }
     }
 
+    @discardableResult
+    private func drainEngine() async -> Int {
+        let delta = await engine.flush()
+        let count = delta.added.count + delta.updated.count + delta.removed.count
+        guard count > 0 || delta.droppedMessages > 0 else { return 0 }
+
+        tree.apply(delta)
+        for update in delta.added {
+            charts.ingest(update: update)
+        }
+        for update in delta.updated {
+            charts.ingest(update: update)
+        }
+        for path in delta.removed where charts.hasChart(for: path) {
+            charts.removeCharts(for: path)
+            chartsChanged()
+        }
+        let counts = await engine.counts()
+        topicCount = counts.topics
+        messageCount = counts.messages
+        droppedCount += delta.droppedMessages
+
+        let now = Date()
+        if now.timeIntervalSince(lastHistoryTick) >= 0.4 {
+            lastHistoryTick = now
+            historyTick += 1
+        }
+        return count
+    }
+
     /// Buffer statistics for the pause button ("N changes, buffer at X%").
     func bufferStats() async -> (changes: Int, fillState: Double) {
-        await engine.bufferStats()
+        let engineStats = await engine.bufferStats()
+        let changes = engineStats.changes + inbox.pendingCount
+        return (changes, Double(changes) / Double(TopicTreeEngine.maxPending))
     }
 
     /// Pause/resume the tree updates, with the "Applying recorded changes." /
@@ -325,16 +356,11 @@ final class AppModel {
         if !paused {
             showNotification("Applying recorded changes.")
             Task {
-                let delta = await engine.flush()
-                let count = delta.added.count + delta.updated.count + delta.removed.count
-                if count > 0 {
-                    tree.apply(delta)
-                    for update in delta.added { charts.ingest(update: update) }
-                    for update in delta.updated { charts.ingest(update: update) }
-                    let counts = await engine.counts()
-                    topicCount = counts.topics
-                    messageCount = counts.messages
+                let batch = inbox.drain()
+                if !batch.messages.isEmpty || batch.dropped > 0 {
+                    await engine.ingest(batch: batch.messages, dropped: batch.dropped)
                 }
+                let count = await drainEngine()
                 showNotification("Successfully applied \(count) changes.")
             }
         }
@@ -486,8 +512,12 @@ final class AppModel {
 
     // MARK: History
 
+    /// Newest messages for the details pane. The drawer never shows more than
+    /// this, and the diff only needs the previous one.
+    static let historyPreviewLimit = 200
+
     func history(for path: String) async -> [StoredMessage] {
-        await engine.history(path: path)
+        await engine.history(path: path, limit: Self.historyPreviewLimit)
     }
 
     /// Seed a freshly added chart with the existing message history of its
