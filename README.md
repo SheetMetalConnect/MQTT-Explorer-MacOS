@@ -6,8 +6,10 @@ Silicon. No Electron, no browser engine: one small binary that starts
 instantly, uses a fraction of the memory, and behaves like any other Mac app
 in light and dark mode.
 
-Based on the original MQTT Explorer by Thomas Nordquist. This repository
-carries the same license and attribution as the original project.
+Based on the original [MQTT Explorer](https://mqtt-explorer.com) by Thomas
+Nordquist, which defined what this tool is and remains the reference for
+the concept. This repository carries the same license and attribution as
+the original project.
 
 ## Features
 
@@ -45,12 +47,25 @@ swift test
 
 ## Install
 
+Download the latest DMG from the
+[releases page](https://github.com/SheetMetalConnect/MQTT-Explorer-MacOS/releases),
+open it and drag MQTT Explorer to Applications. Or build it yourself:
+
 ```sh
 cd macos
 ./make-dmg.sh        # -> macos/build/MQTT Explorer-1.0.0.dmg
 ```
 
-Open the DMG and drag MQTT Explorer to Applications.
+## Usage
+
+See [docs/usage.md](docs/usage.md) for connecting to brokers, navigating
+the topic tree, retained messages, history, charts and publishing.
+
+## Feedback
+
+This app is in active use and development. Bug reports, feature requests
+and general feedback are welcome: open an
+[issue](https://github.com/SheetMetalConnect/MQTT-Explorer-MacOS/issues).
 
 ## License
 
