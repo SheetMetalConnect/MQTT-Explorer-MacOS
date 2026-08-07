@@ -4,60 +4,70 @@
 [![License](https://img.shields.io/badge/license-CC%20BY--ND%204.0-blue)](LICENSE.md)
 
 [MQTT Explorer](https://mqtt-explorer.com) rebuilt in Swift and SwiftUI for
-Apple Silicon. Same tool, same workflow, tuned for speed on macOS with a few
-opinionated tweaks for people who look at business data on a broker.
+Apple Silicon.
 
 ## Install
 
 Download the DMG from the
 [releases page](https://github.com/SheetMetalConnect/MQTT-Explorer-MacOS/releases/latest)
-and drag it to Applications. The app is signed ad-hoc rather than notarized,
-so the first launch is blocked: right-click, Open, confirm.
+and drag it to Applications. Signed ad-hoc, not notarized, so the first
+launch needs right-click, Open, confirm.
 
-## What is different
+## Changed from the original
 
-Added, mostly from integration work between ERP, MES and machines:
+**Rewritten**
+- Swift and SwiftUI instead of Electron, arm64 only
+- 5 MB download instead of 90 MB
+- System light and dark mode, native controls
 
-- Numbers get charted on sight. A single value becomes a trend plot, a JSON
-  object becomes one sparkline per field with a ring showing the split.
-- Payload types are marked in the tree, so business records and sensor
-  readings stop looking alike at a glance.
-- Topic segments starting with an underscore are tinted, following the UNS
-  convention for `_historian` and friends.
-- Any branch lists which children changed, when, and how often, with a
-  switch for the last ten seconds only.
+**Added**
+- Value mode: numbers charted automatically. Scalars get a trend plot, JSON
+  objects a sparkline and share ring per field, arrays a bar chart
+- Chart every value on a topic and its children with one button
+- JSON as a field table with dot paths and per-field chart buttons
+- Payload type markers in the tree: `{}` `[]` `#` `Aa` `hex`
+- UNS data contracts (`_historian`, `_process`) tinted in the tree
+- Live values table per branch: what changed, when, how often
+- Session log, and JSON export or import of connections
+- Auto-expand by branch width and by depth, separately
+- Topic and message counters in the status bar
 
-Not ported: Sparkplug B decoding and last will messages. If you need those,
-use the original.
+**Layout**
+- Three columns: tree, details, charts. Charts moved off the bottom left
+- One status bar for last message, QoS and retained state
+- Settings split into General, Broker and Diagnostics
 
-## Speed
+**Performance**
+- Tree merged in an actor off the main thread, wire order preserved
+- Row list is lazy and only rebuilds when the visible set changes
+- Topics capped at 100k, dropped messages reported
+- Auto-expand stops above 5k topics, Expand All above 8k
 
-The tree is merged in an actor off the main thread, and the main thread only
-touches rows you can actually see.
+**Not ported**
+- Sparkplug B decoding
+- Last will messages
+- The AI assistant
+- Windows and Linux
 
-It holds 19,000 topics and 98,000 messages from test.mosquitto.org while
-staying usable, and builds a 10,000-topic tree in about 0.13 seconds. The
-test suite has benchmarks so it stays that way.
+## Build
 
-## Build it yourself
-
-macOS 15 or newer, Xcode 26 or the matching command line tools.
+macOS 15 or newer, Xcode 26 or matching command line tools.
 
 ```sh
 cd macos
-./make-dmg.sh   # builds the app and packages it
-swift test      # live broker tests skip without one on localhost:1883
+./make-dmg.sh
+swift test
 ```
 
 ## Docs
 
 - [Usage](docs/usage.md)
-- [What changed compared to the original](docs/differences-from-upstream.md)
+- [Full comparison with the original](docs/differences-from-upstream.md)
 
 ## License
 
 CC BY-ND 4.0, same as the original. See `LICENSE.md`.
 
 Original MQTT Explorer by Thomas Nordquist. macOS version by Luke van
-Enkhuizen. Bugs and requests go in the
-[issue tracker](https://github.com/SheetMetalConnect/MQTT-Explorer-MacOS/issues).
+Enkhuizen. Issues go
+[here](https://github.com/SheetMetalConnect/MQTT-Explorer-MacOS/issues).
