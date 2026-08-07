@@ -20,7 +20,11 @@ rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BIN" "$APP_DIR/Contents/MacOS/$APP_NAME"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
-cp ../res/icon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
+if [ ! -f Resources/AppIcon.icns ]; then
+    echo "==> generating Resources/AppIcon.icns"
+    swift tools/make-icon.swift Resources/AppIcon.icns
+fi
+cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 printf 'APPL????' > "$APP_DIR/Contents/PkgInfo"
 
 echo "==> ad-hoc codesign"
