@@ -73,3 +73,7 @@ publish-test*.js
 verify-mobile-tree.js
 interactive-mobile-test.js
 long-wait-test.js
+
+# macOS native build artifacts
+macos/.build/
+macos/build/
